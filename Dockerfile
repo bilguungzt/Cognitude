@@ -1,14 +1,20 @@
-# First stage - install dependencies
-FROM python:3.11-slim as builder
-WORKDIR /install
-COPY pyproject.toml poetry.lock ./
-RUN pip install --upgrade pip && pip install poetry
-RUN poetry config virtualenvs.create false && poetry install --no-interaction --no-ansi
+# 1. Builder stage for dependencies
+FROM python:3.11-slim AS builder
+ENV VIRTUAL_ENV=/opt/venv
+RUN python3 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-# Second stage - create runtime environment
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 2. Final stage for the application
 FROM python:3.11-slim
+ENV VIRTUAL_ENV=/opt/venv
+COPY --from=builder $VIRTUAL_ENV $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
 WORKDIR /app
-COPY --from=builder /install/.venv/lib/python3.11/site-packages /app
-COPY app /app
-RUN pip install uvicorn[standard]
-ENTRYPOINT ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+COPY ./app ./app
+
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
