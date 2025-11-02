@@ -3,6 +3,7 @@ import secrets
 from passlib.context import CryptContext
 from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
+from fastapi import Depends, HTTPException, status
 
 from . import crud
 from .database import SessionLocal
