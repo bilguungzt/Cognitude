@@ -14,7 +14,7 @@ from sqlalchemy.pool import StaticPool
 # which does not have a native JSONB type.
 @compiles(JSONB, "sqlite")
 def compile_jsonb_sqlite(type_, compiler, **kw):
-    return compiler.visit_json(type_, **kw)
+    return "JSON"
 
 
 # Add project root to the Python path
