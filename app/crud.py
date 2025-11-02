@@ -21,15 +21,30 @@ def get_models(db: Session, organization_id: int, skip: int = 0, limit: int = 10
     return db.query(models.Model).filter(models.Model.organization_id == organization_id).offset(skip).limit(limit).all()
 
 def create_model(db: Session, model: schemas.ModelCreate, organization_id: int):
-    db_model = models.Model(**model.dict(), organization_id=organization_id)
+    model_data = model.dict(exclude={"features"})
+    db_model = models.Model(**model_data, organization_id=organization_id)
     db.add(db_model)
+    db.commit()
+    db.refresh(db_model)
+
+    for feature_data in model.features:
+        db_feature = models.ModelFeature(**feature_data.dict(), model_id=db_model.id)
+        db.add(db_feature)
     db.commit()
     db.refresh(db_model)
     return db_model
 
 def create_prediction(db: Session, prediction: schemas.PredictionCreate, model_id: int):
-    db_prediction = models.Prediction(**prediction.dict(), model_id=model_id)
+    prediction_data = prediction.dict(exclude={"inputs"})
+    db_prediction = models.Prediction(**prediction_data, model_id=model_id)
     db.add(db_prediction)
+    db.commit()
+    db.refresh(db_prediction)
+
+    for input_data in prediction.inputs:
+        # Assuming a PredictionInput model exists
+        db_input = models.PredictionInput(**input_data.dict(), prediction_id=db_prediction.id)
+        db.add(db_input)
     db.commit()
     db.refresh(db_prediction)
     return db_prediction

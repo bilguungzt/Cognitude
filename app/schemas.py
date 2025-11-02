@@ -65,8 +65,7 @@ class PredictionOutput(PredictionOutputBase):
 class PredictionBase(BaseModel):
     status: str = "PENDING"
 
-class PredictionCreate(BaseModel):
-    model_id: int
+class PredictionCreate(PredictionBase):
     inputs: List[PredictionInputCreate]
 
 class Prediction(PredictionBase):

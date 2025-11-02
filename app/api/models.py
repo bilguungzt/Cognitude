@@ -3,9 +3,8 @@ from typing import List
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from . import crud, models, schemas
-from .database import get_db
-from .security import verify_api_key
+from .. import crud, models, schemas
+from ..security import get_db, verify_api_key
 
 router = APIRouter()
 
