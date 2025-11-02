@@ -1,16 +1,27 @@
+import os
+import sys
+
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import JSON, create_engine
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-import sys
-import os
+
+# Add a compilation rule for JSONB on SQLite, so that it is treated as JSON.
+# This is necessary because the tests use an in-memory SQLite database,
+# which does not have a native JSONB type.
+@compiles(JSONB, "sqlite")
+def compile_jsonb_sqlite(type_, compiler, **kw):
+    return compiler.visit_json(type_, **kw)
+
 
 # Add project root to the Python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from app.main import app
 from app.database import Base
+from app.main import app
 from app.security import get_db
 
 # Setup the in-memory SQLite database for testing
@@ -23,6 +34,7 @@ engine = create_engine(
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+
 # Dependency override to use the test database
 def override_get_db():
     try:
@@ -31,7 +43,9 @@ def override_get_db():
     finally:
         db.close()
 
+
 app.dependency_overrides[get_db] = override_get_db
+
 
 @pytest.fixture()
 def client():
@@ -90,7 +104,7 @@ def test_create_model_authorized(client):
         ],
     }
     model_response = client.post("/models/", headers=headers, json=model_data)
-    
+
     assert model_response.status_code == 200
     data = model_response.json()
     assert data["name"] == "Auth Test Model"
