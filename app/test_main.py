@@ -52,7 +52,7 @@ app.dependency_overrides[get_db] = override_get_db
 @pytest.fixture(autouse=True)
 def mock_hashing(monkeypatch):
     """
-    Mocks password hashing to avoid bcrypt error in test environment.
+    Mocks password hashing and verification to avoid bcrypt error in test environment.
     This is a workaround for an issue where passlib's bcrypt backend detection
     fails, likely due to an outdated bcrypt library, causing a ValueError
     on strings longer than 72 bytes during an internal check.
@@ -62,7 +62,12 @@ def mock_hashing(monkeypatch):
         # A simple "hash" for testing purposes
         return f"hashed-{password}"
 
+    def mock_verify(secret: str, hash: str) -> bool:
+        # A simple "verify" for testing purposes
+        return hash == f"hashed-{secret}"
+
     monkeypatch.setattr(security, "get_password_hash", mock_get_password_hash)
+    monkeypatch.setattr(security.pwd_context, "verify", mock_verify)
 
 
 @pytest.fixture()
