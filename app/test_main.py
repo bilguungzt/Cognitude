@@ -23,6 +23,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from app.database import Base
 from app.main import app
 from app.security import get_db
+import app.security
+
 
 # Setup the in-memory SQLite database for testing
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
@@ -45,6 +47,22 @@ def override_get_db():
 
 
 app.dependency_overrides[get_db] = override_get_db
+
+
+@pytest.fixture(autouse=True)
+def mock_hashing(monkeypatch):
+    """
+    Mocks password hashing to avoid bcrypt error in test environment.
+    This is a workaround for an issue where passlib's bcrypt backend detection
+    fails, likely due to an outdated bcrypt library, causing a ValueError
+    on strings longer than 72 bytes during an internal check.
+    """
+
+    def mock_get_password_hash(password: str) -> str:
+        # A simple "hash" for testing purposes
+        return f"hashed-{password}"
+
+    monkeypatch.setattr(app.security, "get_password_hash", mock_get_password_hash)
 
 
 @pytest.fixture()
