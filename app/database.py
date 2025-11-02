@@ -1,6 +1,9 @@
 import dotenv
 dotenv.load_dotenv()
 
+# Override with .env.local for local development
+dotenv.load_dotenv(dotenv_path='.env.local', override=True)
+
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
