@@ -37,6 +37,7 @@ class ModelFeature(Base):
     model_id = Column(Integer, ForeignKey("models.id"))
     feature_name = Column(String)
     feature_type = Column(String)
+    order = Column(Integer)
     baseline_stats = Column(JSONB)
 
     model = relationship("Model", back_populates="features")

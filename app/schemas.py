@@ -5,7 +5,7 @@ from typing import List, Optional
 
 # ModelFeature Schemas
 class ModelFeatureBase(BaseModel):
-    name: str
+    feature_name: str
     feature_type: str
     order: int
 
