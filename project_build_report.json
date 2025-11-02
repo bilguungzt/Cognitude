@@ -1,0 +1,110 @@
+{
+  "plan": [
+    {
+      "task_prompt": "Generate a standard Python .gitignore file. Include common entries like `__pycache__/`, `.env`, `*.pyc`, and virtual environment directories like `venv/`. CRITICAL: Your response MUST be only the raw, valid, uncommented code for the file. Start with the first line of code and end with the last. Do not include *any* descriptive text, explanations, or markdown formatting.",
+      "output_file": ".gitignore",
+      "model": "local"
+    },
+    {
+      "task_prompt": "Create a `requirements.txt` file listing the required Python packages for a FastAPI backend. The file must contain only the package names, without any version pinning. The required packages are: 'fastapi', 'uvicorn[standard]', 'sqlalchemy', 'psycopg2-binary', 'python-dotenv', 'pydantic-settings', 'passlib[bcrypt]', 'python-multipart'. List each package on a new line. CRITICAL: Your response MUST be only the raw, valid, uncommented code for the file. Start with the first line of code and end with the last. Do not include *any* descriptive text, explanations, or markdown formatting.",
+      "output_file": "requirements.txt",
+      "model": "local"
+    },
+    {
+      "task_prompt": "Create a `.env.example` file for the DriftGuard AI application. It must contain two environment variables: `DATABASE_URL` and `API_KEY_SECRET`. Set `DATABASE_URL` to 'postgresql+psycopg2://myuser:mypassword@db/mydatabase'. Set `API_KEY_SECRET` to a placeholder value like 'yoursecretkeygoeshere'. CRITICAL: Your response MUST be only the raw, valid, uncommented code for the file. Start with the first line of code and end with the last. Do not include *any* descriptive text, explanations, or markdown formatting.",
+      "output_file": ".env.example",
+      "model": "local"
+    },
+    {
+      "task_prompt": "Create a standard `Dockerfile` for a Python FastAPI application. Use `python:3.11-slim` as the base image. Set the working directory to `/code`. Copy `requirements.txt` and install the dependencies using pip. Copy the `app` directory into `/code/app`. Expose port 8000. The `CMD` should use `uvicorn` to run the app located at `app.main:app`, binding it to host 0.0.0.0 and port 8000. The command should be: `[\"uvicorn\", \"app.main:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8000\"]`. CRITICAL: Your response MUST be only the raw, valid, uncommented code for the file. Start with the first line of code and end with the last. Do not include *any* descriptive text, explanations, or markdown formatting.",
+      "output_file": "Dockerfile",
+      "model": "local"
+    },
+    {
+      "task_prompt": "Create a `docker-compose.yml` file with two services: 'api' and 'db'. The 'api' service should build from the current directory's Dockerfile, map port 8000 to 8000, depend on the 'db' service, and use an `.env` file for environment variables. Mount the local './app' directory to '/code/app' as a volume for development hot-reloading. The 'db' service should use the `timescale/timescaledb:latest-pg14` image. It must be named 'db'. It should have a volume named 'postgres_data' for data persistence. Set the environment variables `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` to 'myuser', 'mypassword', and 'mydatabase' respectively, to match the DATABASE_URL in the .env file. Finally, define the top-level 'postgres_data' volume. Use 2-space indentation. CRITICAL: Your response MUST be only the raw, valid, uncommented code for the file. Start with the first line of code and end with the last. Do not include *any* descriptive text, explanations, or markdown formatting.",
+      "output_file": "docker-compose.yml",
+      "model": "local"
+    },
+    {
+      "task_prompt": "Create an empty `__init__.py` file for the `app` package. CRITICAL: Your response MUST be only the raw, valid, uncommented code for the file. Start with the first line of code and end with the last. Do not include *any* descriptive text, explanations, or markdown formatting.",
+      "output_file": "app/__init__.py",
+      "model": "local"
+    },
+    {
+      "task_prompt": "Create an empty `__init__.py` file for the `app/api` subpackage. CRITICAL: Your response MUST be only the raw, valid, uncommented code for the file. Start with the first line of code and end with the last. Do not include *any* descriptive text, explanations, or markdown formatting.",
+      "output_file": "app/api/__init__.py",
+      "model": "local"
+    },
+    {
+      "task_prompt": "Create the `app/database.py` file. It must start by importing and calling `load_dotenv` from `python-dotenv`. Use `os.getenv` to read the `DATABASE_URL` from the environment. Set up the SQLAlchemy engine using `create_engine`. Create a `SessionLocal` class using `sessionmaker`. Create a `Base` declarative base class using `declarative_base`. Finally, define a dependency function `get_db()` that yields a database session and ensures it's closed afterward. CRITICAL: Your response MUST be only the raw, valid, uncommented code for the file. Start with the first line of code and end with the last. Do not include *any* descriptive text, explanations, or markdown formatting.",
+      "output_file": "app/database.py",
+      "model": "gemini"
+    },
+    {
+      "task_prompt": "Create the `app/models.py` file defining all SQLAlchemy ORM models. Use `from .database import Base`. The file must contain 6 tables with specified columns and relationships:\n1. 'organizations': id (PK, int), name (str, unique), api_key (str, unique, indexed), created_at (datetime), models (relationship to 'Model').\n2. 'models': id (PK, int), organization_id (FK to organizations.id), name (str), model_type (str), baseline_mean (float), baseline_std (float), created_at (datetime), features (relationship to 'ModelFeature'), predictions (relationship to 'Prediction'), alerts (relationship to 'DriftAlert').\n3. 'model_features': id (PK, int), model_id (FK to models.id), feature_name (str), feature_type (str), baseline_stats (JSONB).\n4. 'predictions': time (TIMESTAMPTZ, PK), model_id (FK to models.id, PK), prediction_value (float), features (JSONB). This table must use a composite primary key on (time, model_id).\n5. 'drift_alerts': id (PK, int), model_id (FK to models.id), alert_type (str), drift_score (float), triggered_at (datetime).\n6. 'alert_channels': id (PK, int), organization_id (FK to organizations.id), channel_type (str), configuration (JSONB). \nUse `sqlalchemy.dialects.postgresql.JSONB` and `TIMESTAMPTZ`. For all `created_at` and `triggered_at` fields, use `server_default=func.now()`. Use `back_populates` for all relationships. CRITICAL: Your response MUST be only the raw, valid, uncommented code for the file. Start with the first line of code and end with the last. Do not include *any* descriptive text, explanations, or markdown formatting.",
+      "output_file": "app/models.py",
+      "model": "gemini"
+    },
+    {
+      "task_prompt": "Create the `app/schemas.py` file with all Pydantic V2 models for API input and output. All models that map to ORM models must include `model_config = {\"from_attributes\": True}`. Create schemas for each of the 6 database models. For each model, create a `Base` schema, a `Create` schema for input, and a full schema for output that inherits from `Base` and includes fields like `id` and `created_at`. \n- Organization schemas: OrganizationCreate (name), Organization (id, name, created_at), OrganizationWithAPIKey (id, name, created_at, api_key). \n- Model schemas: ModelCreate (name, model_type, baseline_mean, baseline_std), Model (id, organization_id, name, model_type, baseline_mean, baseline_std, created_at). \n- Prediction schemas: PredictionCreate (prediction_value, features: dict), Prediction (time, model_id, prediction_value, features: dict). \n- Define corresponding schemas for `ModelFeature`, `DriftAlert`, and `AlertChannel`. Use `datetime` for timestamps and `dict` for JSON fields. CRITICAL: Your response MUST be only the raw, valid, uncommented code for the file. Start with the first line of code and end with the last. Do not include *any* descriptive text, explanations, or markdown formatting.",
+      "output_file": "app/schemas.py",
+      "model": "gemini"
+    },
+    {
+      "task_prompt": "Create the `app/security.py` file for authentication. It should contain two main functions:\n1. `generate_api_key()`: A function that generates a secure, random, URL-safe string to be used as an API key. Use the `secrets` module.\n2. `get_current_organization()`: A FastAPI dependency function that verifies an API key provided in the `X-API-Key` header. It should use `APIKeyHeader(name='X-API-Key')`. The function should query the database (using a `db: Session` dependency from `app.database`) to find the organization associated with the provided API key using `crud.get_organization_by_api_key`. If the key is invalid or not found, it must raise an `HTTPException` with status code 401. If valid, it should return the organization ORM object. Use relative imports. CRITICAL: Your response MUST be only the raw, valid, uncommented code for the file. Start with the first line of code and end with the last. Do not include *any* descriptive text, explanations, or markdown formatting.",
+      "output_file": "app/security.py",
+      "model": "gemini"
+    },
+    {
+      "task_prompt": "Create the `app/crud.py` file with all database interaction functions. Use SQLAlchemy's `Session` for database operations. Import the ORM models and Pydantic schemas using relative imports (e.g., `from . import models, schemas`). Create functions for:\n- `get_organization_by_name(db: Session, name: str)`.\n- `get_organization_by_api_key(db: Session, api_key: str)`.\n- `create_organization(db: Session, organization: schemas.OrganizationCreate, api_key: str)`.\n- `create_model_for_organization(db: Session, model: schemas.ModelCreate, organization_id: int)`.\n- `get_models_by_organization(db: Session, organization_id: int, skip: int = 0, limit: int = 100)`.\n- `get_model_by_id(db: Session, model_id: int)`.\n- `create_prediction(db: Session, prediction: schemas.PredictionCreate, model_id: int)`. CRITICAL: Your response MUST be only the raw, valid, uncommented code for the file. Start with the first line of code and end with the last. Do not include *any* descriptive text, explanations, or markdown formatting.",
+      "output_file": "app/crud.py",
+      "model": "gemini"
+    },
+    {
+      "task_prompt": "Create the `app/api/auth.py` router file. Create an `APIRouter` instance. Define a `POST /auth/register` endpoint that takes an `OrganizationCreate` schema as input. The endpoint should depend on `get_db`, check if an organization with the same name already exists (raise 400 if so), generate a new API key using `security.generate_api_key`, create the new organization using `crud.create_organization`, and return the new organization data including its API key, using the `OrganizationWithAPIKey` response model. Use relative imports. CRITICAL: Your response MUST be only the raw, valid, uncommented code for the file. Start with the first line of code and end with the last. Do not include *any* descriptive text, explanations, or markdown formatting.",
+      "output_file": "app/api/auth.py",
+      "model": "gemini"
+    },
+    {
+      "task_prompt": "Create the `app/api/models.py` router file. Create an `APIRouter` instance. Define two endpoints, both protected by the `get_current_organization` security dependency:\n1. `@router.post(\"/models\", response_model=schemas.Model, status_code=201)`: This endpoint should take a `ModelCreate` schema as input, create a new model for the authenticated organization using `crud.create_model_for_organization`, and return the created model data.\n2. `@router.get(\"/models\", response_model=list[schemas.Model])`: This endpoint should retrieve and return a list of all models for the authenticated organization using `crud.get_models_by_organization`. \nUse relative imports for all internal modules. CRITICAL: Your response MUST be only the raw, valid, uncommented code for the file. Start with the first line of code and end with the last. Do not include *any* descriptive text, explanations, or markdown formatting.",
+      "output_file": "app/api/models.py",
+      "model": "gemini"
+    },
+    {
+      "task_prompt": "Create the `app/api/predictions.py` router file. Create an `APIRouter` instance. Define one endpoint:\n- `@router.post(\"/models/{model_id}/predictions\", response_model=schemas.Prediction, status_code=201)`: This endpoint must be protected by the `get_current_organization` dependency. It takes a `model_id` from the path and a `PredictionCreate` schema from the body. It must verify that the model belongs to the authenticated organization. If not, raise a 403 Forbidden HTTPException. If it belongs, use `crud.create_prediction` to save the prediction. Return the created prediction. Use relative imports. CRITICAL: Your response MUST be only the raw, valid, uncommented code for the file. Start with the first line of code and end with the last. Do not include *any* descriptive text, explanations, or markdown formatting.",
+      "output_file": "app/api/predictions.py",
+      "model": "gemini"
+    },
+    {
+      "task_prompt": "Create the `app/api/drift.py` router file for the MVP. Create an `APIRouter` instance. Define one endpoint:\n- `@router.get(\"/models/{model_id}/drift/current\")`: This endpoint must be protected by the `get_current_organization` dependency. It takes a `model_id` from the path. It must verify that the model belongs to the authenticated organization, raising a 403 Forbidden HTTPException if not. For the MVP, return a hardcoded JSON response `{\"model_id\": model_id, \"drift_status\": \"NO_DRIFT\", \"confidence_score\": 0.98}`. Use relative imports. CRITICAL: Your response MUST be only the raw, valid, uncommented code for the file. Start with the first line of code and end with the last. Do not include *any* descriptive text, explanations, or markdown formatting.",
+      "output_file": "app/api/drift.py",
+      "model": "gemini"
+    },
+    {
+      "task_prompt": "Create the main `app/main.py` file. This file should:\n1. Import `FastAPI`, `text` from `sqlalchemy`, and all necessary components using relative imports (`.database`, `.models`, `.api.auth`, `.api.models`, etc.).\n2. Create the main `FastAPI` app instance.\n3. Define an `on_startup` event handler. Inside, create all database tables using `models.Base.metadata.create_all(bind=database.engine)`. Then, using a `with database.engine.connect() as conn:`, execute the raw SQL `SELECT create_hypertable('predictions', 'time', if_not_exists => TRUE);` using `text()` from sqlalchemy and commit the transaction.\n4. Register this function to run on startup using `@app.on_event(\"startup\")`.\n5. Import and include the routers from `app.api.auth`, `app.api.models`, `app.api.predictions`, and `app.api.drift`. Include each router in the app instance without any prefix.\n6. Define a root `GET /` endpoint that returns `{\"message\": \"DriftGuard AI is running\"}`. CRITICAL: Your response MUST be only the raw, valid, uncommented code for the file. Start with the first line of code and end with the last. Do not include *any* descriptive text, explanations, or markdown formatting.",
+      "output_file": "app/main.py",
+      "model": "gemini"
+    }
+  ],
+  "generated_files": [
+    ".gitignore",
+    "requirements.txt",
+    ".env.example",
+    "Dockerfile",
+    "docker-compose.yml",
+    "app/__init__.py",
+    "app/api/__init__.py",
+    "app/database.py",
+    "app/models.py",
+    "app/schemas.py",
+    "app/security.py",
+    "app/crud.py",
+    "app/api/auth.py",
+    "app/api/models.py",
+    "app/api/predictions.py",
+    "app/api/drift.py",
+    "app/main.py"
+  ],
+  "architecture": {},
+  "errors": []
+}
