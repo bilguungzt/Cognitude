@@ -1,7 +1,6 @@
 import secrets
 
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
 from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 
@@ -13,6 +12,8 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 api_key_header = APIKeyHeader(name="X-API-Key")
 
 def get_password_hash(password: str) -> str:
+    if len(password) > 72:
+        password = password[:72]
     return pwd_context.hash(password)
 
 def create_api_key() -> str:
