@@ -1,25 +1,25 @@
-aml
-version: '3'
+version: '3.8'
+
 services:
-  api:
-    build: .
-    ports:
-      - "8000:8000"
-    depends_on:
-      - db
-    env_file:
-      - .env
-    volumes:
-      - ./app:/code/app
   db:
     image: timescale/timescaledb:latest-pg14
-    container_name: db
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
       POSTGRES_USER: myuser
       POSTGRES_PASSWORD: mypassword
       POSTGRES_DB: mydatabase
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app
+    depends_on:
+      - db
+    env_file:
+      - .env
 
 volumes:
   postgres_data:
