@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from app.database import Base
 from app.main import app
 from app.security import get_db
-import app.security
+from app import security
 
 
 # Setup the in-memory SQLite database for testing
@@ -62,7 +62,7 @@ def mock_hashing(monkeypatch):
         # A simple "hash" for testing purposes
         return f"hashed-{password}"
 
-    monkeypatch.setattr(app.security, "get_password_hash", mock_get_password_hash)
+    monkeypatch.setattr(security, "get_password_hash", mock_get_password_hash)
 
 
 @pytest.fixture()
