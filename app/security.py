@@ -28,7 +28,7 @@ def get_db():
 async def verify_api_key(api_key: str = Depends(api_key_header), db: Session = Depends(get_db)):
     organizations = crud.get_organizations(db)
     for org in organizations:
-        if org.hashed_api_key and pwd_context.verify(api_key, org.hashed_api_key):
+        if org.api_key_hash and pwd_context.verify(api_key, org.api_key_hash):
             return org
 
     raise HTTPException(
