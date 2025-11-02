@@ -1,27 +1,45 @@
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .deps import get_db, get_current_organization
-from ..models import Model, Organization
+from . import crud
+from . import security
+from ..deps import get_db
 
 router = APIRouter()
 
+@router.get(
+    "/models/{model_id}/drift/current",
+    dependencies=[Depends(security.verify_api_key)],
+)
+def get_current_drift(model_id: int, db: Session = Depends(get_db)):
+    db_model = crud.get_model(db, model_id=model_id)
+    if not db_model:
+        raise HTTPException(status_code=404, detail="Model not found")
 
-@router.get("/models/{model_id}/drift/current")
-def get_current_model_drift(
-    model_id: int,
-    db: Session = Depends(get_db),
-    current_organization: Organization = Depends(get_current_organization),
-):
-    """
-    Get the current drift status for a specific model.
-    """
-    model = db.query(Model).filter(Model.id == model_id).first()
-
-    if not model or model.organization_id != current_organization.id:
+    if db_model.baseline_mean is None or db_model.baseline_stdev is None:
         raise HTTPException(
-            status_code=403, detail="Not authorized to access this model"
+            status_code=400,
+            detail="Model does not have a calculated baseline for drift detection."
         )
 
-    return {"model_id": model_id, "drift_status": "NO_DRIFT", "confidence_score": 0.98}
+    predictions = crud.get_predictions_by_model(db=db, model_id=model_id, limit=100)
+
+    if not predictions:
+        raise HTTPException(
+            status_code=404,
+            detail="No recent predictions found to calculate current drift."
+        )
+
+    prediction_values = [p.prediction for p in predictions]
+    current_mean = sum(prediction_values) / len(prediction_values)
+
+    baseline_mean = db_model.baseline_mean
+    baseline_stdev = db_model.baseline_stdev
+
+    drift_detected = abs(current_mean - baseline_mean) > (2 * baseline_stdev)
+
+    return {
+        "current_mean": current_mean,
+        "baseline_mean": baseline_mean,
+        "drift_detected": drift_detected,
+    }

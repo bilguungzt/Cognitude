@@ -1,24 +1,19 @@
 from fastapi import FastAPI
-from sqlalchemy import text
 
-from . import database, models
-from .api import auth, drift, predictions
-from .api import models as api_models
+from .api import auth, models, predictions, drift
+from .database import Base, engine
 
-app = FastAPI(title="DriftGuard AI")
+app = FastAPI()
 
 @app.on_event("startup")
-async def on_startup():
-    models.Base.metadata.create_all(bind=database.engine)
-    with database.engine.connect() as conn:
-        conn.execute(text("SELECT create_hypertable('predictions', 'time', if_not_exists => TRUE);"))
-        conn.commit()
+def startup_event():
+    Base.metadata.create_all(bind=engine)
 
-app.include_router(auth.router)
-app.include_router(api_models.router)
-app.include_router(predictions.router)
-app.include_router(drift.router)
+app.include_router(auth.router, prefix="/auth", tags=["auth"])
+app.include_router(models.router, prefix="/models", tags=["models"])
+app.include_router(predictions.router, prefix="/predictions", tags=["predictions"])
+app.include_router(drift.router, prefix="/drift", tags=["drift"])
 
 @app.get("/")
-async def root():
+def read_root():
     return {"message": "DriftGuard AI is running"}

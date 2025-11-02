@@ -1,29 +1,31 @@
+from typing import List
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from .. import crud, schemas
-from ..auth import get_current_organization
-from ..database import get_db
+from . import crud, models, schemas
+from .database import get_db
+from .security import verify_api_key
 
 router = APIRouter()
 
 
-@router.post("/models", response_model=schemas.Model, status_code=201)
+@router.post("/", response_model=schemas.Model)
 def create_model(
     model: schemas.ModelCreate,
     db: Session = Depends(get_db),
-    current_organization: schemas.Organization = Depends(get_current_organization),
+    organization: models.Organization = Depends(verify_api_key),
 ):
-    return crud.create_model_for_organization(
-        db=db, model=model, organization_id=current_organization.id
-    )
+    return crud.create_model(db=db, model=model, organization_id=organization.id)
 
 
-@router.get("/models", response_model=list[schemas.Model])
-def read_models(
+@router.get("/", response_model=List[schemas.Model])
+def get_models(
+    skip: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db),
-    current_organization: schemas.Organization = Depends(get_current_organization),
+    organization: models.Organization = Depends(verify_api_key),
 ):
-    return crud.get_models_by_organization(
-        db=db, organization_id=current_organization.id
+    return crud.get_models(
+        db=db, organization_id=organization.id, skip=skip, limit=limit
     )

@@ -1,27 +1,37 @@
-
 import secrets
 
+from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 
-from . import crud, models
-from .database import get_db
+from . import crud
+from .database import SessionLocal
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 api_key_header = APIKeyHeader(name="X-API-Key")
 
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
 
-def generate_api_key() -> str:
+def create_api_key() -> str:
     return secrets.token_urlsafe(32)
 
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-def get_current_organization(
-    api_key: str = Depends(api_key_header), db: Session = Depends(get_db)
-) -> models.Organization:
-    organization = crud.get_organization_by_api_key(db, api_key=api_key)
-    if not organization:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API Key",
-        )
-    return organization
+async def verify_api_key(api_key: str = Depends(api_key_header), db: Session = Depends(get_db)):
+    organizations = crud.get_organizations(db)
+    for org in organizations:
+        if org.hashed_api_key and pwd_context.verify(api_key, org.hashed_api_key):
+            return org
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Could not validate credentials",
+    )
