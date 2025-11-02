@@ -4,12 +4,18 @@ from . import models, schemas
 def get_organization_by_api_key_hash(db: Session, api_key_hash: str):
     return db.query(models.Organization).filter(models.Organization.api_key_hash == api_key_hash).first()
 
+def get_organizations(db: Session):
+    return db.query(models.Organization).all()
+
 def create_organization(db: Session, organization: schemas.OrganizationCreate, api_key_hash: str):
     db_organization = models.Organization(**organization.dict(), api_key_hash=api_key_hash)
     db.add(db_organization)
     db.commit()
     db.refresh(db_organization)
     return db_organization
+
+def get_model(db: Session, model_id: int):
+    return db.query(models.Model).filter(models.Model.id == model_id).first()
 
 def get_models(db: Session, organization_id: int, skip: int = 0, limit: int = 100):
     return db.query(models.Model).filter(models.Model.organization_id == organization_id).offset(skip).limit(limit).all()

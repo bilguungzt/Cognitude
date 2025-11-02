@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from . import crud, schemas, security
+from .. import crud, schemas, security
+from ..security import get_db
 
 router = APIRouter()
 
@@ -9,7 +10,7 @@ router = APIRouter()
 def create_prediction(
     model_id: int,
     prediction: schemas.PredictionCreate,
-    db: Session = Depends(crud.get_db_session),
+    db: Session = Depends(get_db),
     current_org: schemas.Organization = Depends(security.verify_api_key),
 ):
     db_model = crud.get_model(db, model_id=model_id)

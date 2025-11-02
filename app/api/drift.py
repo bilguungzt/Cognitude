@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from . import crud
-from . import security
-from ..deps import get_db
+from .. import crud
+from .. import security
+from ..security import get_db
 
 router = APIRouter()
 
@@ -22,7 +22,7 @@ def get_current_drift(model_id: int, db: Session = Depends(get_db)):
             detail="Model does not have a calculated baseline for drift detection."
         )
 
-    predictions = crud.get_predictions_by_model(db=db, model_id=model_id, limit=100)
+    predictions = crud.get_latest_predictions(db=db, model_id=model_id, limit=100)
 
     if not predictions:
         raise HTTPException(
