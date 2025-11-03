@@ -1,16 +1,6 @@
 DriftGuard AI (MVP)
 DriftGuard AI is a minimum viable product (MVP) for an ML model monitoring platform. This backend service, built with FastAPI, provides a secure API for registering ML models, logging their predictions, and detecting data drift.
 
-This project was built using an AI Agent-Driven Development workflow. The "virtual dev team" consisted of:
-
-A Project Manager (execute_project.py) to orchestrate the build.
-
-A "CEO" Agent (Gemini 2.5 Pro) for high-level architecture, complex logic, and bug fixes.
-
-An "Intern" Agent (local Qwen 7B) for simple, boilerplate tasks.
-
-A "Senior Developer" (Aider-NG) for iterative "read-edit-write" code changes.
-
 ✨ Core Features
 Organization Auth: POST /auth/register endpoint to create a new organization and generate a unique API key.
 
@@ -27,12 +17,6 @@ Backend: FastAPI (Python)
 
 Database: PostgreSQL (managed via Docker)
 
-Local Agent: Ollama (running Qwen 2.5 Coder 7B)
-
-Cloud Agent: Gemini 2.5 Pro
-
-Agent Framework: Aider-NG
-
 Testing: Pytest and HTTPX
 
 🚀 How to Run This Project
@@ -43,9 +27,6 @@ Python 3.10+
 
 Docker Desktop (must be running)
 
-Ollama (must be running, for agent development)
-
-A GEMINI_API_KEY from Google AI Studio.
 
 2. Initial Setup
 Clone the repository:
