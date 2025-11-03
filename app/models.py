@@ -19,14 +19,25 @@ class Model(Base):
     __tablename__ = "models"
 
     id = Column(Integer, primary_key=True, index=True)
-    organization_id = Column(Integer, ForeignKey("organizations.id"))
-    name = Column(String, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    name = Column(String, index=True, nullable=False)
+    version = Column(String, nullable=False)
+    description = Column(String)
     model_type = Column(String)
     baseline_mean = Column(Float)
     baseline_std = Column(Float)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
 
     organization = relationship("Organization", back_populates="models")
-    features = relationship("ModelFeature", back_populates="model")
+    features = relationship(
+        "ModelFeature",
+        back_populates="model",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
     predictions = relationship("Prediction", back_populates="model")
     drift_alerts = relationship("DriftAlert", back_populates="model")
 
@@ -34,11 +45,11 @@ class ModelFeature(Base):
     __tablename__ = "model_features"
 
     id = Column(Integer, primary_key=True, index=True)
-    model_id = Column(Integer, ForeignKey("models.id"))
+    model_id = Column(Integer, ForeignKey("models.id", ondelete="CASCADE"), nullable=False)
     feature_name = Column(String)
     feature_type = Column(String)
     order = Column(Integer)
-    baseline_stats = Column(JSONB)
+    baseline_stats = Column(JSONB, nullable=True)
 
     model = relationship("Model", back_populates="features")
 
@@ -46,10 +57,12 @@ class Prediction(Base):
     __tablename__ = "predictions"
 
     id = Column(Integer, primary_key=True, index=True)
-    time = Column(DateTime(timezone=True), server_default=func.now())
-    model_id = Column(Integer, ForeignKey("models.id"))
-    prediction_value = Column(Float)
-    features = Column(JSONB)
+    time = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    model_id = Column(Integer, ForeignKey("models.id", ondelete="CASCADE"), nullable=False)
+    prediction_value = Column(Float, nullable=False)
+    actual_value = Column(Float)
+    latency_ms = Column(Float)
+    features = Column(JSONB, nullable=False)
 
     model = relationship("Model", back_populates="predictions")
 

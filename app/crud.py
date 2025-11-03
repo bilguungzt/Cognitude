@@ -34,20 +34,24 @@ def create_model(db: Session, model: schemas.ModelCreate, organization_id: int):
     db.refresh(db_model)
     return db_model
 
-def create_prediction(db: Session, prediction: schemas.PredictionCreate, model_id: int):
-    prediction_data = prediction.model_dump(exclude={"inputs"})
-    db_prediction = models.Prediction(**prediction_data, model_id=model_id)
+def create_prediction(db: Session, prediction: schemas.PredictionData, model_id: int):
+    db_prediction = models.Prediction(
+        time=prediction.timestamp,
+        model_id=model_id,
+        prediction_value=prediction.prediction_value,
+        actual_value=prediction.actual_value,
+        latency_ms=None,
+        features=prediction.features,
+    )
     db.add(db_prediction)
-    db.commit()
-    db.refresh(db_prediction)
-
-    for input_data in prediction.inputs:
-        # Assuming a PredictionInput model exists
-        db_input = models.PredictionInput(**input_data.model_dump(), prediction_id=db_prediction.id)
-        db.add(db_input)
-    db.commit()
-    db.refresh(db_prediction)
+    db.flush()
     return db_prediction
 
 def get_latest_predictions(db: Session, model_id: int, limit: int = 100):
-    return db.query(models.Prediction).filter(models.Prediction.model_id == model_id).order_by(models.Prediction.timestamp.desc()).limit(limit).all()
+    return (
+        db.query(models.Prediction)
+        .filter(models.Prediction.model_id == model_id)
+        .order_by(models.Prediction.time.desc())
+        .limit(limit)
+        .all()
+    )

@@ -1,7 +1,7 @@
-from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
-from uuid import UUID
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, ConfigDict
 
 # ModelFeature Schemas
 class ModelFeatureBase(BaseModel):
@@ -34,47 +34,22 @@ class Model(ModelBase):
     features: List[ModelFeature] = []
     model_config = ConfigDict(from_attributes=True)
 
-# PredictionInput Schemas
-class PredictionInputBase(BaseModel):
-    feature_name: str
-    feature_value: str
-
-class PredictionInputCreate(PredictionInputBase):
-    pass
-
-class PredictionInput(PredictionInputBase):
-    id: int
-    prediction_id: UUID
-    model_config = ConfigDict(from_attributes=True)
-
-# PredictionOutput Schemas
-class PredictionOutputBase(BaseModel):
-    output_name: str
-    output_value: str
-    score: Optional[float] = None
-
-class PredictionOutputCreate(PredictionOutputBase):
-    pass
-
-class PredictionOutput(PredictionOutputBase):
-    id: int
-    prediction_id: UUID
-    model_config = ConfigDict(from_attributes=True)
-
 # Prediction Schemas
-class PredictionBase(BaseModel):
-    status: str = "PENDING"
+class PredictionData(BaseModel):
+    features: Dict[str, Any]
+    prediction_value: float
+    actual_value: Optional[float] = None
+    timestamp: datetime
 
-class PredictionCreate(PredictionBase):
-    inputs: List[PredictionInputCreate]
 
-class Prediction(PredictionBase):
-    id: UUID
+class Prediction(BaseModel):
+    id: int
+    time: datetime
     model_id: int
-    created_at: datetime
-    updated_at: datetime
-    inputs: List[PredictionInput] = []
-    outputs: List[PredictionOutput] = []
+    prediction_value: float
+    actual_value: Optional[float] = None
+    latency_ms: Optional[float] = None
+    features: Dict[str, Any]
     model_config = ConfigDict(from_attributes=True)
 
 # Organization Schemas

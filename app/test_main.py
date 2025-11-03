@@ -67,7 +67,7 @@ def mock_hashing(monkeypatch):
         return hash == f"hashed-{secret}"
 
     monkeypatch.setattr(security, "get_password_hash", mock_get_password_hash)
-    monkeypatch.setattr(security.pwd_context, "verify", mock_verify)
+    monkeypatch.setattr(security, "verify_password", mock_verify)
 
 
 @pytest.fixture()
