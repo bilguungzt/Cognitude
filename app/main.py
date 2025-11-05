@@ -4,12 +4,16 @@ from fastapi import FastAPI
 
 from .api import auth, models, predictions, drift
 from .database import Base, engine, apply_migrations
+from .services.background_tasks import scheduler
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     apply_migrations()
     Base.metadata.create_all(bind=engine)
+    scheduler.start()
     yield
+    scheduler.shutdown()
 
 
 app = FastAPI(lifespan=lifespan)

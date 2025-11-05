@@ -73,6 +73,8 @@ class DriftAlert(Base):
     model_id = Column(Integer, ForeignKey("models.id"))
     alert_type = Column(String)
     drift_score = Column(Float)
+    detected_at = Column(DateTime(timezone=True), nullable=False)
+    acknowledged_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     model = relationship("Model", back_populates="drift_alerts")

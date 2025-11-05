@@ -1,3 +1,4 @@
+from datetime import datetime
 from sqlalchemy.orm import Session
 from . import models, schemas
 
@@ -55,3 +56,18 @@ def get_latest_predictions(db: Session, model_id: int, limit: int = 100):
         .limit(limit)
         .all()
     )
+
+def get_all_models(db: Session):
+    return db.query(models.Model).all()
+
+def create_drift_alert(db: Session, model_id: int, alert_type: str, drift_score: float, detected_at: datetime):
+    db_alert = models.DriftAlert(
+        model_id=model_id,
+        alert_type=alert_type,
+        drift_score=drift_score,
+        detected_at=detected_at,
+    )
+    db.add(db_alert)
+    db.commit()
+    db.refresh(db_alert)
+    return db_alert

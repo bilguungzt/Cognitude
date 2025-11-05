@@ -8,3 +8,6 @@ passlib[bcrypt]
 python-multipart
 pytest
 httpx
+scipy
+numpy
+apscheduler
