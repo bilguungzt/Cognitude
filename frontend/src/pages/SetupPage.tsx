@@ -582,11 +582,13 @@ logPrediction();`,
                 type="text"
                 value={testModelId}
                 onChange={(e) => setTestModelId(e.target.value)}
-                placeholder="Enter your model ID (e.g., 1)"
+                placeholder="Auto-filled from Step 2 or enter manually"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Get your Model ID from the Models page
+                {testModelId 
+                  ? "✓ Model ID ready to test" 
+                  : "Create a model in Step 2 above to auto-fill"}
               </p>
             </div>
             <div className="pt-7">
