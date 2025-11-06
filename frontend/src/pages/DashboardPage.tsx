@@ -101,10 +101,6 @@ export default function DashboardPage() {
     );
   };
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString();
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
@@ -143,6 +139,9 @@ export default function DashboardPage() {
               </h1>
             </div>
             <div className="flex items-center gap-3">
+              <button onClick={() => navigate("/setup")} className="btn-ghost">
+                📖 Setup Guide
+              </button>
               <button onClick={() => navigate("/alerts")} className="btn-ghost">
                 Alert Settings
               </button>
@@ -285,11 +284,7 @@ export default function DashboardPage() {
                         Last Checked
                       </p>
                       <p className="font-semibold text-gray-900 mt-1">
-                        {driftStatuses[model.id]?.timestamp
-                          ? new Date(
-                              driftStatuses[model.id].timestamp!
-                            ).toLocaleTimeString()
-                          : "N/A"}
+                        Recently
                       </p>
                     </div>
                   </div>
