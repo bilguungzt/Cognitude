@@ -416,9 +416,6 @@ logPrediction();`,
                         disabled={creatingModel}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
                       />
-                      <p className="text-xs text-gray-500 mt-1">
-                        Or go to the Models page to create manually
-                      </p>
                     </div>
                     <div className="pt-7">
                       <button
