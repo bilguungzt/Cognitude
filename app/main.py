@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from .api import auth, models, predictions, drift, alert_channels
 from .database import Base, engine, apply_migrations
@@ -59,6 +60,19 @@ curl -H "X-API-Key: your-api-key" https://api.driftguard.ai/models/
         "name": "MIT",
         "url": "https://opensource.org/licenses/MIT",
     }
+)
+
+# Configure CORS for frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",  # Vite dev server
+        "http://localhost:3000",  # Production frontend
+        "http://localhost:8080",  # Alternative frontend port
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
