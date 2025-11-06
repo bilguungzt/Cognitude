@@ -1,0 +1,26 @@
+services:
+  db:
+    image: timescale/timescaledb:latest-pg14
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: mydatabase
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/code/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://myuser:mypassword@db/mydatabase
+
+volumes:
+  postgres_data:
