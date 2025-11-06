@@ -31,6 +31,17 @@ export default function ModelDriftPage() {
     navigate("/login");
   };
 
+  // Format timestamp for chart display
+  const formatChartData = (data: DriftHistoryPoint[]) => {
+    return data.map(point => ({
+      ...point,
+      timestamp: new Date(point.timestamp).toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric' 
+      })
+    }));
+  };
+
   useEffect(() => {
     loadModelData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -55,10 +66,14 @@ export default function ModelDriftPage() {
         });
       }
 
-      // Load drift history (we'll use mock data for now since history endpoint doesn't exist yet)
-      // In production, this would be: await api.getDriftHistory(parseInt(modelId));
-      const mockHistory = generateMockDriftHistory();
-      setDriftHistory(mockHistory);
+      // Load drift history from API
+      try {
+        const history = await api.getDriftHistory(parseInt(modelId));
+        setDriftHistory(history);
+      } catch {
+        // If no history exists, set empty array
+        setDriftHistory([]);
+      }
 
       setError("");
     } catch {
@@ -66,30 +81,6 @@ export default function ModelDriftPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Generate mock drift history data for visualization
-  const generateMockDriftHistory = () => {
-    const history = [];
-    const now = new Date();
-
-    for (let i = 14; i >= 0; i--) {
-      const date = new Date(now);
-      date.setDate(date.getDate() - i);
-
-      const driftScore = Math.random() * 0.6 + (i < 3 ? 0.3 : 0);
-      const driftDetected = driftScore > 0.5;
-
-      history.push({
-        timestamp: date.toISOString().split("T")[0],
-        drift_score: parseFloat(driftScore.toFixed(3)),
-        drift_detected: driftDetected,
-        p_value: parseFloat((Math.random() * 0.1).toFixed(4)),
-        samples: Math.floor(Math.random() * 100) + 50,
-      });
-    }
-
-    return history;
   };
 
   if (loading) {
@@ -219,11 +210,13 @@ export default function ModelDriftPage() {
 
           {driftHistory.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-600">No drift history available yet</p>
+              <p className="text-gray-600">
+                No drift history available yet. Run drift detection to see results here.
+              </p>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={400}>
-              <LineChart data={driftHistory}>
+              <LineChart data={formatChartData(driftHistory)}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis
                   dataKey="timestamp"

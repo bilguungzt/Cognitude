@@ -59,6 +59,18 @@ class DriftDetectionService:
 
         drift_detected = p_value < 0.05
 
+        # Save drift history record
+        drift_history = models.DriftHistory(
+            model_id=model_id,
+            drift_detected=drift_detected,
+            drift_score=ks_statistic,
+            p_value=p_value,
+            samples=len(current_values),
+            timestamp=datetime.now(timezone.utc)
+        )
+        self.db.add(drift_history)
+        self.db.commit()
+
         # f. If drift is detected, create and save a DriftAlert record
         if drift_detected:
             crud.create_drift_alert(

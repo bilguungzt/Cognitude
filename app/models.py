@@ -40,6 +40,8 @@ class Model(Base):
     )
     predictions = relationship("Prediction", back_populates="model")
     drift_alerts = relationship("DriftAlert", back_populates="model")
+    drift_history = relationship("DriftHistory", back_populates="model", cascade="all, delete-orphan")
+
 
 class ModelFeature(Base):
     __tablename__ = "model_features"
@@ -78,6 +80,20 @@ class DriftAlert(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     model = relationship("Model", back_populates="drift_alerts")
+
+class DriftHistory(Base):
+    __tablename__ = "drift_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    model_id = Column(Integer, ForeignKey("models.id"), nullable=False)
+    drift_detected = Column(Boolean, nullable=False)
+    drift_score = Column(Float, nullable=False)
+    p_value = Column(Float, nullable=False)
+    samples = Column(Integer, nullable=False)
+    feature_drifts = Column(JSONB, nullable=True)  # Per-feature drift details
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    model = relationship("Model", back_populates="drift_history")
 
 class AlertChannel(Base):
     __tablename__ = "alert_channels"

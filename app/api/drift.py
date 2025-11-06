@@ -123,3 +123,94 @@ def get_current_drift(
         }
 
     return drift_results
+
+
+@router.get(
+    "/models/{model_id}/history",
+    summary="Get drift history",
+    description="""
+    Retrieve historical drift detection results for a model.
+    
+    Returns a time-series of drift scores, p-values, and detection status.
+    Useful for visualizing drift trends over time.
+    
+    **Query Parameters:**
+    - `limit`: Maximum number of records to return (default: 100)
+    - `days`: Number of days to look back (default: 30)
+    
+    **Example:**
+    ```bash
+    curl http://localhost:8000/drift/models/1/history?limit=50&days=14 \\
+      -H "X-API-Key: your-api-key"
+    ```
+    """,
+    responses={
+        200: {
+            "description": "Drift history records",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "timestamp": "2025-11-05T10:30:00Z",
+                            "drift_detected": True,
+                            "drift_score": 0.65,
+                            "p_value": 0.012,
+                            "samples": 150
+                        }
+                    ]
+                }
+            }
+        },
+        404: {
+            "description": "Model not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Model not found"}
+                }
+            }
+        }
+    }
+)
+def get_drift_history(
+    model_id: int,
+    limit: int = 100,
+    days: int = 30,
+    db: Session = Depends(get_db),
+    organization: models.Organization = Depends(security.verify_api_key),
+):
+    """Get historical drift detection results for a model."""
+    # Verify model exists and belongs to organization
+    db_model = crud.get_model(db, model_id=model_id)
+    if not db_model:
+        raise HTTPException(status_code=404, detail="Model not found")
+    # Type ignore for SQLAlchemy comparison
+    if db_model.organization_id != organization.id:  # type: ignore
+        raise HTTPException(status_code=404, detail="Model not found")
+    
+    # Calculate cutoff date
+    from datetime import datetime, timedelta, timezone
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+    
+    # Query drift history
+    history = (
+        db.query(models.DriftHistory)
+        .filter(
+            models.DriftHistory.model_id == model_id,
+            models.DriftHistory.timestamp >= cutoff_date
+        )
+        .order_by(models.DriftHistory.timestamp.desc())
+        .limit(limit)
+        .all()
+    )
+    
+    # Format response
+    return [
+        {
+            "timestamp": record.timestamp.isoformat(),
+            "drift_detected": record.drift_detected,
+            "drift_score": record.drift_score,
+            "p_value": record.p_value,
+            "samples": record.samples
+        }
+        for record in reversed(history)  # Return oldest first for chart display
+    ]
