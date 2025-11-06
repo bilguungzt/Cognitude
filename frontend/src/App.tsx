@@ -4,6 +4,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import AlertSettingsPage from "./pages/AlertSettingsPage";
+import ModelDetailsPage from "./pages/ModelDetailsPage";
 import ModelDriftPage from "./pages/ModelDriftPage";
 
 function App() {
@@ -25,6 +26,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <AlertSettingsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/models/:modelId"
+            element={
+              <ProtectedRoute>
+                <ModelDetailsPage />
               </ProtectedRoute>
             }
           />

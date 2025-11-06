@@ -296,7 +296,7 @@ export default function DashboardPage() {
 
                   <div className="flex gap-3">
                     <button
-                      onClick={() => navigate(`/models/${model.id}/drift`)}
+                      onClick={() => navigate(`/models/${model.id}`)}
                       className="btn-primary px-5 py-2.5"
                     >
                       View Details
