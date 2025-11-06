@@ -214,3 +214,163 @@ def get_drift_history(
         }
         for record in reversed(history)  # Return oldest first for chart display
     ]
+
+
+@router.get(
+    "/alerts",
+    summary="Get all drift alerts",
+    description="""
+    Retrieve all drift alerts across all models for your organization.
+    
+    Drift alerts are automatically created when drift is detected (p < 0.05).
+    Each alert includes the model, drift score, and timestamp.
+    
+    **Query Parameters:**
+    - `limit`: Maximum number of alerts to return (default: 100)
+    - `days`: Number of days to look back (default: 30)
+    
+    **Example:**
+    ```bash
+    curl http://localhost:8000/drift/alerts?limit=50 \\
+      -H "X-API-Key: your-api-key"
+    ```
+    
+    **Response:**
+    ```json
+    [
+      {
+        "id": 123,
+        "model_id": 1,
+        "model_name": "fraud_detector_v1",
+        "alert_type": "data_drift",
+        "drift_score": 0.678,
+        "detected_at": "2025-11-06T10:30:00Z"
+      }
+    ]
+    ```
+    """,
+    responses={
+        200: {
+            "description": "List of drift alerts",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "id": 123,
+                            "model_id": 1,
+                            "model_name": "fraud_detector_v1",
+                            "alert_type": "data_drift",
+                            "drift_score": 0.678,
+                            "detected_at": "2025-11-06T10:30:00Z"
+                        }
+                    ]
+                }
+            }
+        }
+    }
+)
+def get_drift_alerts(
+    limit: int = 100,
+    days: int = 30,
+    db: Session = Depends(get_db),
+    organization: models.Organization = Depends(security.verify_api_key),
+):
+    """Get all drift alerts for the organization."""
+    from datetime import datetime, timedelta, timezone
+    
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+    
+    # Query drift alerts with model information
+    alerts = (
+        db.query(models.DriftAlert, models.Model.name)
+        .join(models.Model, models.DriftAlert.model_id == models.Model.id)
+        .filter(
+            models.Model.organization_id == organization.id,  # type: ignore
+            models.DriftAlert.detected_at >= cutoff_date
+        )
+        .order_by(models.DriftAlert.detected_at.desc())
+        .limit(limit)
+        .all()
+    )
+    
+    # Format response
+    return [
+        {
+            "id": alert.id,
+            "model_id": alert.model_id,
+            "model_name": model_name,
+            "alert_type": alert.alert_type,
+            "drift_score": alert.drift_score,
+            "detected_at": alert.detected_at.isoformat()
+        }
+        for alert, model_name in alerts
+    ]
+
+
+@router.get(
+    "/models/{model_id}/alerts",
+    summary="Get drift alerts for a specific model",
+    description="""
+    Retrieve drift alerts for a specific model.
+    
+    **Query Parameters:**
+    - `limit`: Maximum number of alerts to return (default: 100)
+    - `days`: Number of days to look back (default: 30)
+    
+    **Example:**
+    ```bash
+    curl http://localhost:8000/drift/models/1/alerts?limit=20 \\
+      -H "X-API-Key: your-api-key"
+    ```
+    """,
+    responses={
+        200: {
+            "description": "List of drift alerts for the model",
+        },
+        404: {
+            "description": "Model not found"
+        }
+    }
+)
+def get_model_drift_alerts(
+    model_id: int,
+    limit: int = 100,
+    days: int = 30,
+    db: Session = Depends(get_db),
+    organization: models.Organization = Depends(security.verify_api_key),
+):
+    """Get drift alerts for a specific model."""
+    # Verify model exists and belongs to organization
+    db_model = crud.get_model(db, model_id=model_id)
+    if not db_model:
+        raise HTTPException(status_code=404, detail="Model not found")
+    if db_model.organization_id != organization.id:  # type: ignore
+        raise HTTPException(status_code=404, detail="Model not found")
+    
+    from datetime import datetime, timedelta, timezone
+    
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+    
+    # Query drift alerts for this model
+    alerts = (
+        db.query(models.DriftAlert)
+        .filter(
+            models.DriftAlert.model_id == model_id,
+            models.DriftAlert.detected_at >= cutoff_date
+        )
+        .order_by(models.DriftAlert.detected_at.desc())
+        .limit(limit)
+        .all()
+    )
+    
+    # Format response
+    return [
+        {
+            "id": alert.id,
+            "model_id": alert.model_id,
+            "alert_type": alert.alert_type,
+            "drift_score": alert.drift_score,
+            "detected_at": alert.detected_at.isoformat()
+        }
+        for alert in alerts
+    ]

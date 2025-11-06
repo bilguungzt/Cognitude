@@ -236,3 +236,85 @@ def update_feature_baseline_stats(
     db.refresh(feature)
     
     return {"success": True, "feature_id": feature_id}
+
+
+@router.post(
+    "/{model_id}/baseline",
+    summary="Auto-generate baseline from existing predictions",
+    description="""
+    Automatically generate baseline statistics from existing predictions.
+    
+    This endpoint will:
+    1. Fetch all existing predictions for the model
+    2. Calculate baseline statistics (using prediction_value as samples)
+    3. Update all features with the same baseline
+    
+    Use this as a quick way to set up a baseline after logging initial predictions.
+    """,
+    responses={
+        200: {
+            "description": "Baseline generated successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": True,
+                        "predictions_count": 100,
+                        "features_updated": 3
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Model not found or no predictions available",
+        }
+    }
+)
+def auto_generate_baseline(
+    model_id: int,
+    organization: models.Organization = Depends(get_organization_from_api_key),
+    db: Session = Depends(get_db),
+):
+    """Auto-generate baseline stats from existing predictions."""
+    # Get the model
+    db_model = crud.get_model(db, model_id=model_id)
+    if not db_model:
+        raise HTTPException(status_code=404, detail="Model not found")
+    
+    if db_model.organization_id != organization.id:  # type: ignore
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Get all predictions
+    predictions = (
+        db.query(models.Prediction)
+        .filter(models.Prediction.model_id == model_id)
+        .all()
+    )
+    
+    if len(predictions) < 30:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Need at least 30 predictions to generate baseline. Found: {len(predictions)}"
+        )
+    
+    # Extract prediction values
+    samples = [p.prediction_value for p in predictions]
+    
+    # Update all features with the same baseline
+    features = (
+        db.query(models.ModelFeature)
+        .filter(models.ModelFeature.model_id == model_id)
+        .all()
+    )
+    
+    features_updated = 0
+    for feature in features:
+        feature.baseline_stats = {"samples": samples}  # type: ignore
+        features_updated += 1
+    
+    db.commit()
+    
+    return {
+        "success": True,
+        "predictions_count": len(predictions),
+        "features_updated": features_updated
+    }

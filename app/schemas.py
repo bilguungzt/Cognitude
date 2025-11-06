@@ -15,6 +15,7 @@ class ModelFeatureCreate(ModelFeatureBase):
 class ModelFeature(ModelFeatureBase):
     id: int
     model_id: int
+    baseline_stats: Optional[Dict[str, Any]] = None
     model_config = ConfigDict(from_attributes=True)
 
 # Model Schemas

@@ -236,6 +236,7 @@ export default function ModelDriftPage() {
                     borderRadius: "8px",
                     boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
                   }}
+                  formatter={(value: number) => value.toFixed(4)}
                 />
                 <Legend />
                 <ReferenceLine
@@ -262,6 +263,121 @@ export default function ModelDriftPage() {
             </ResponsiveContainer>
           )}
         </div>
+
+        {/* P-Value Chart */}
+        {driftHistory.length > 0 && (
+          <div className="card p-6 mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-6">
+              P-Value Over Time
+            </h2>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={formatChartData(driftHistory)}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis
+                  dataKey="timestamp"
+                  stroke="#6b7280"
+                  style={{ fontSize: "12px" }}
+                />
+                <YAxis
+                  stroke="#6b7280"
+                  style={{ fontSize: "12px" }}
+                  domain={[0, 1]}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "white",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "8px",
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+                  }}
+                  formatter={(value: number) => value.toFixed(4)}
+                />
+                <Legend />
+                <ReferenceLine
+                  y={0.05}
+                  stroke="#ef4444"
+                  strokeDasharray="5 5"
+                  label={{
+                    value: "Significance Level (α = 0.05)",
+                    position: "right",
+                    fill: "#ef4444",
+                    fontSize: 12,
+                  }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="p_value"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  dot={{ fill: "#10b981", r: 4 }}
+                  activeDot={{ r: 6 }}
+                  name="P-Value"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+            <p className="text-xs text-gray-500 mt-4">
+              Values below 0.05 indicate statistical significance (drift
+              detected)
+            </p>
+          </div>
+        )}
+
+        {/* Drift History Table */}
+        {driftHistory.length > 0 && (
+          <div className="card p-6 mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Drift Detection History
+            </h2>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Timestamp
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Drift Score
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      P-Value
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Samples
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {driftHistory.map((point, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {new Date(point.timestamp).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {point.drift_detected ? (
+                          <span className="badge-error">🔴 Drift</span>
+                        ) : (
+                          <span className="badge-success">🟢 OK</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {point.drift_score.toFixed(4)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {point.p_value.toFixed(4)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {point.samples}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Model Features */}
         <div className="card p-6">

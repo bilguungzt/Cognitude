@@ -84,3 +84,35 @@ app.include_router(alert_channels.router, prefix="/alert-channels", tags=["alert
 @app.get("/")
 def read_root():
     return {"message": "DriftGuard AI is running"}
+
+@app.get("/health", tags=["system"])
+def health_check():
+    """
+    Health check endpoint for monitoring and load balancers
+    """
+    return {
+        "status": "healthy",
+        "service": "DriftGuard AI",
+        "version": "1.0.0",
+        "timestamp": "2025-11-06T00:00:00Z"
+    }
+
+@app.get("/scheduler/status", tags=["system"])
+def scheduler_status():
+    """
+    Get status of background scheduler
+    """
+    jobs = scheduler.get_jobs()
+    
+    return {
+        "is_running": scheduler.running,
+        "job_count": len(jobs),
+        "jobs": [
+            {
+                "id": job.id,
+                "name": job.name,
+                "trigger": str(job.trigger)
+            }
+            for job in jobs
+        ]
+    }
