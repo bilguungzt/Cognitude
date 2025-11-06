@@ -15,6 +15,13 @@ export default function SetupPage() {
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState<string>("");
+  const [newModelName, setNewModelName] = useState<string>("");
+  const [creatingModel, setCreatingModel] = useState(false);
+  const [modelCreateResult, setModelCreateResult] = useState<{ 
+    success: boolean; 
+    message: string; 
+    modelId?: number 
+  } | null>(null);
   const { logout } = useAuth();
   const navigate = useNavigate();
 
@@ -121,15 +128,63 @@ export default function SetupPage() {
     navigate("/login");
   };
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+  const handleCreateModel = async () => {
+    if (!newModelName.trim()) {
+      setModelCreateResult({ 
+        success: false, 
+        message: 'Please enter a model name' 
+      });
+      return;
+    }
+
+    setCreatingModel(true);
+    setModelCreateResult(null);
+
+    try {
+      const model = await api.createModel({
+        name: newModelName,
+        version: '1.0.0',
+        description: `Created from Setup page`,
+        features: [
+          { feature_name: 'feature_1', feature_type: 'numeric', order: 1 },
+          { feature_name: 'feature_2', feature_type: 'numeric', order: 2 },
+          { feature_name: 'feature_3', feature_type: 'categorical', order: 3 },
+        ],
+      });
+
+      setModelCreateResult({
+        success: true,
+        message: `✅ Model "${model.name}" created! (ID: ${model.id})`,
+        modelId: model.id,
+      });
+
+      // Auto-fill the model ID in the test section
+      setTestModelId(String(model.id));
+      setNewModelName('');
+    } catch (error: unknown) {
+      const err = error as {
+        response?: { data?: { detail?: string } };
+        message?: string;
+      };
+
+      setModelCreateResult({
+        success: false,
+        message: `❌ Error: ${err.response?.data?.detail || err.message || 'Failed to create model'}`,
+      });
+    } finally {
+      setCreatingModel(false);
+    }
+  };
+
+  const API_BASE_URL = import.meta.env.VITE_API_URL || "https://api.driftguard.ai"; // Production URL by default
 
   const codeSnippets: Record<Language, { code: string; install: string }> = {
     python: {
       code: `import requests
 import json
 
-API_KEY = "${apiKey || "your-api-key-here"}"
-MODEL_ID = "your-model-id"  # Get from Models page
+API_KEY = "${apiKey ? '••••••••' : "your-api-key-here"}"  # Copy from Step 1
+MODEL_ID = "your-model-id"  # From Step 2 below
 BASE_URL = "${API_BASE_URL}"
 
 headers = {
@@ -165,8 +220,8 @@ else:
     nodejs: {
       code: `const axios = require('axios');
 
-const API_KEY = '${apiKey || "your-api-key-here"}';
-const MODEL_ID = 'your-model-id'; // Get from Models page
+const API_KEY = '${apiKey ? '••••••••' : "your-api-key-here"}';  // Copy from Step 1
+const MODEL_ID = 'your-model-id'; // From Step 2 below
 const BASE_URL = '${API_BASE_URL}';
 
 const headers = {
@@ -206,7 +261,7 @@ logPrediction();`,
     },
     curl: {
       code: `curl -X POST "${API_BASE_URL}/predictions/your-model-id" \\
-  -H "X-API-Key: ${apiKey || "your-api-key-here"}" \\
+  -H "X-API-Key: ${apiKey ? '••••••••' : "your-api-key-here"}" \\
   -H "Content-Type: application/json" \\
   -d '{
     "prediction": 0.85,
@@ -297,45 +352,93 @@ logPrediction();`,
                 </p>
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                   <div className="flex items-center gap-2">
-                    <code className="flex-1 text-sm font-mono text-gray-800 break-all">
-                      {apiKey || "No API key found. Please log in."}
+                    <code className="flex-1 text-sm font-mono text-gray-800">
+                      {apiKey ? '••••••••••••••••••••••••••••••••' : "No API key found. Please log in."}
                     </code>
                     <button
                       onClick={() => handleCopy(apiKey, "apiKey")}
                       disabled={!apiKey}
-                      className={`px-3 py-1.5 text-sm rounded ${
+                      className={`px-3 py-1.5 text-sm rounded whitespace-nowrap ${
                         apiKey
                           ? "bg-blue-600 text-white hover:bg-blue-700"
                           : "bg-gray-300 text-gray-500 cursor-not-allowed"
                       }`}
                     >
-                      {copied === "apiKey" ? "✓ Copied!" : "Copy"}
+                      {copied === "apiKey" ? "✓ Copied!" : "Copy to Clipboard"}
                     </button>
                   </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    🔒 Your API key is hidden for security. Click "Copy to Clipboard" to use it.
+                  </p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Step 2: Register Model */}
+          {/* Step 2: Register Model - IMPROVED WITH INLINE WIDGET */}
           <div className="mb-6 pb-6 border-b border-gray-200">
             <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white font-bold bg-gray-300">
-                2
+              <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${modelCreateResult?.success ? 'bg-green-500' : 'bg-gray-300'}`}>
+                {modelCreateResult?.success ? '✓' : '2'}
               </div>
               <div className="flex-1">
                 <h4 className="text-lg font-semibold text-gray-900 mb-2">
-                  Register Your Model
+                  Register Your First Model
                 </h4>
                 <p className="text-gray-600 mb-3">
                   Create a model to track predictions and detect drift.
                 </p>
-                <button
-                  onClick={() => navigate("/dashboard")}
-                  className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Go to Models Page →
-                </button>
+                
+                {/* Inline Model Creation Form */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Model Name
+                      </label>
+                      <input
+                        type="text"
+                        value={newModelName}
+                        onChange={(e) => setNewModelName(e.target.value)}
+                        placeholder="e.g., My Production Model"
+                        disabled={creatingModel}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                      />
+                    </div>
+                    <button
+                      onClick={handleCreateModel}
+                      disabled={creatingModel || !newModelName.trim()}
+                      className={`w-full px-6 py-2 rounded-lg font-medium transition-colors ${
+                        creatingModel || !newModelName.trim()
+                          ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                          : "bg-green-600 text-white hover:bg-green-700"
+                      }`}
+                    >
+                      {creatingModel ? "Creating..." : "✨ Create Model"}
+                    </button>
+                  </div>
+                  
+                  {modelCreateResult && (
+                    <div
+                      className={`mt-3 p-3 rounded-lg ${
+                        modelCreateResult.success
+                          ? "bg-green-100 border border-green-300 text-green-800"
+                          : "bg-red-100 border border-red-300 text-red-800"
+                      }`}
+                    >
+                      <p className="text-sm font-medium">{modelCreateResult.message}</p>
+                      {modelCreateResult.success && modelCreateResult.modelId && (
+                        <p className="text-xs mt-1">
+                          Model ID <code className="bg-green-200 px-2 py-0.5 rounded">{modelCreateResult.modelId}</code> auto-filled below!
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
+                <p className="text-xs text-gray-500 mt-2">
+                  Or <button onClick={() => navigate("/dashboard")} className="text-blue-600 hover:underline">go to the Models page</button> to create manually
+                </p>
               </div>
             </div>
           </div>
