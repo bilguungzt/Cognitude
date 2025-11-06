@@ -9,7 +9,59 @@ from ..security import get_db, get_organization_from_api_key
 router = APIRouter()
 
 
-@router.post("/", response_model=schemas.Model)
+@router.post(
+    "/", 
+    response_model=schemas.Model,
+    summary="Register a new model",
+    description="""
+    Register a new ML model for drift monitoring.
+    
+    Define your model's features so DriftGuard can track drift per-feature.
+    
+    **Example:**
+    ```bash
+    curl -X POST http://localhost:8000/models/ \\
+      -H "X-API-Key: your-api-key" \\
+      -H "Content-Type: application/json" \\
+      -d '{
+        "name": "fraud_detector_v1",
+        "version": "1.0.0",
+        "description": "Credit card fraud detection model",
+        "features": [
+          {"feature_name": "transaction_amount", "feature_type": "numeric", "order": 1},
+          {"feature_name": "merchant_category", "feature_type": "categorical", "order": 2}
+        ]
+      }'
+    ```
+    """,
+    responses={
+        200: {
+            "description": "Model created successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "name": "fraud_detector_v1",
+                        "version": "1.0.0",
+                        "description": "Credit card fraud detection model",
+                        "id": 1,
+                        "organization_id": 1,
+                        "created_at": "2025-11-06T04:48:08.472638Z",
+                        "updated_at": "2025-11-06T04:48:08.472638Z",
+                        "features": [
+                            {
+                                "feature_name": "transaction_amount",
+                                "feature_type": "numeric",
+                                "order": 1,
+                                "id": 1,
+                                "model_id": 1
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    }
+)
 def create_model(
     model: schemas.ModelCreate,
     organization: models.Organization = Depends(get_organization_from_api_key),
@@ -18,7 +70,34 @@ def create_model(
     return crud.create_model(db=db, model=model, organization_id=organization.id)
 
 
-@router.get("/", response_model=List[schemas.Model])
+@router.get(
+    "/", 
+    response_model=List[schemas.Model],
+    summary="List all models",
+    description="""
+    List all models registered by your organization.
+    
+    Supports pagination with `skip` and `limit` parameters.
+    """,
+    responses={
+        200: {
+            "description": "List of models",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "name": "fraud_detector_v1",
+                            "version": "1.0.0",
+                            "id": 1,
+                            "organization_id": 1,
+                            "features": []
+                        }
+                    ]
+                }
+            }
+        }
+    }
+)
 def get_models(
     skip: int = 0,
     limit: int = 100,
@@ -30,7 +109,48 @@ def get_models(
     )
 
 
-@router.put("/{model_id}/features/{feature_id}")
+@router.put(
+    "/{model_id}/features/{feature_id}",
+    summary="Update feature baseline statistics",
+    description="""
+    Update the baseline statistics for a model feature.
+    
+    Baseline stats are used as the reference distribution for drift detection.
+    You should set these after logging your initial batch of "good" predictions.
+    
+    **Example:**
+    ```bash
+    curl -X PUT http://localhost:8000/models/1/features/1 \\
+      -H "X-API-Key: your-api-key" \\
+      -H "Content-Type: application/json" \\
+      -d '{
+        "baseline_stats": {
+          "samples": [0.5, 0.52, 0.48, 0.51, ...]
+        }
+      }'
+    ```
+    
+    The `samples` array should contain 50-100 prediction values from your baseline period.
+    """,
+    responses={
+        200: {
+            "description": "Baseline stats updated successfully",
+            "content": {
+                "application/json": {
+                    "example": {"success": True, "feature_id": 1}
+                }
+            }
+        },
+        404: {
+            "description": "Feature not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Feature not found"}
+                }
+            }
+        }
+    }
+)
 def update_feature_baseline_stats(
     model_id: int,
     feature_id: int,

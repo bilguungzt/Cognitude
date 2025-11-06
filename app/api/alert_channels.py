@@ -16,7 +16,79 @@ class AlertChannelCreate(BaseModel):
     configuration: Dict[str, Any]  # {"email": "..."} or {"webhook_url": "..."}
 
 
-@router.post("/")
+@router.post(
+    "/",
+    summary="Create an alert channel",
+    description="""
+    Configure email or Slack notifications for drift alerts.
+    
+    When drift is detected, DriftGuard will automatically send notifications 
+    through all active channels configured for your organization.
+    
+    **Email Example:**
+    ```bash
+    curl -X POST http://localhost:8000/alert-channels/ \\
+      -H "X-API-Key: your-api-key" \\
+      -H "Content-Type: application/json" \\
+      -d '{
+        "channel_type": "email",
+        "configuration": {"email": "alerts@company.com"}
+      }'
+    ```
+    
+    **Slack Example:**
+    ```bash
+    curl -X POST http://localhost:8000/alert-channels/ \\
+      -H "X-API-Key: your-api-key" \\
+      -H "Content-Type: application/json" \\
+      -d '{
+        "channel_type": "slack",
+        "configuration": {
+          "webhook_url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+        }
+      }'
+    ```
+    
+    **How to get a Slack webhook:**
+    1. Go to https://api.slack.com/apps
+    2. Create a new app or select existing
+    3. Enable "Incoming Webhooks"
+    4. Add webhook to your workspace
+    5. Copy the webhook URL
+    """,
+    responses={
+        200: {
+            "description": "Alert channel created successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": 1,
+                        "channel_type": "email",
+                        "is_active": True,
+                        "created_at": "2025-11-06T10:30:00Z"
+                    }
+                }
+            }
+        },
+        400: {
+            "description": "Invalid request",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "invalid_type": {
+                            "summary": "Invalid channel type",
+                            "value": {"detail": "channel_type must be 'email' or 'slack'"}
+                        },
+                        "missing_config": {
+                            "summary": "Missing configuration",
+                            "value": {"detail": "configuration must contain 'email' field for email channels"}
+                        }
+                    }
+                }
+            }
+        }
+    }
+)
 def create_alert_channel(
     channel_data: AlertChannelCreate,
     organization: models.Organization = Depends(get_organization_from_api_key),
@@ -70,7 +142,41 @@ def create_alert_channel(
     }
 
 
-@router.get("/")
+@router.get(
+    "/",
+    summary="List alert channels",
+    description="""
+    Get all alert channels configured for your organization.
+    
+    Shows which notification channels are active and when they were created.
+    Sensitive data (like webhook URLs) is not exposed in the list view.
+    """,
+    responses={
+        200: {
+            "description": "List of alert channels",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "id": 1,
+                            "channel_type": "email",
+                            "is_active": True,
+                            "created_at": "2025-11-06T10:30:00Z",
+                            "configured": True
+                        },
+                        {
+                            "id": 2,
+                            "channel_type": "slack",
+                            "is_active": True,
+                            "created_at": "2025-11-06T10:35:00Z",
+                            "configured": True
+                        }
+                    ]
+                }
+            }
+        }
+    }
+)
 def list_alert_channels(
     organization: models.Organization = Depends(get_organization_from_api_key),
     db: Session = Depends(get_db),
@@ -95,7 +201,37 @@ def list_alert_channels(
     ]
 
 
-@router.delete("/{channel_id}")
+@router.delete(
+    "/{channel_id}",
+    summary="Delete an alert channel",
+    description="""
+    Remove an alert channel. You will stop receiving notifications through this channel.
+    
+    **Example:**
+    ```bash
+    curl -X DELETE http://localhost:8000/alert-channels/1 \\
+      -H "X-API-Key: your-api-key"
+    ```
+    """,
+    responses={
+        200: {
+            "description": "Channel deleted successfully",
+            "content": {
+                "application/json": {
+                    "example": {"success": True, "message": "Alert channel deleted"}
+                }
+            }
+        },
+        404: {
+            "description": "Alert channel not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Alert channel not found"}
+                }
+            }
+        }
+    }
+)
 def delete_alert_channel(
     channel_id: int,
     organization: models.Organization = Depends(get_organization_from_api_key),

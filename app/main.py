@@ -16,7 +16,50 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown()
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    title="DriftGuard AI",
+    description="""
+## ML Model Monitoring & Drift Detection Platform
+
+DriftGuard AI helps ML teams detect data drift in production models and get alerted before model performance degrades.
+
+### Features
+
+* **Model Registration**: Register your ML models with feature definitions
+* **Prediction Logging**: Log predictions in real-time or batch
+* **Drift Detection**: Automatic KS test-based drift detection every 15 minutes
+* **Alerts**: Email and Slack notifications when drift is detected
+* **API Keys**: Secure multi-tenant authentication
+
+### Quick Start
+
+1. Register your organization: `POST /auth/register`
+2. Create a model: `POST /models/`
+3. Log predictions: `POST /predictions/models/{model_id}/predictions`
+4. Configure alerts: `POST /alert-channels/`
+5. Check drift: `GET /drift/models/{model_id}/drift/current`
+
+### Authentication
+
+All endpoints (except `/auth/register`) require an API key in the `X-API-Key` header.
+
+```bash
+curl -H "X-API-Key: your-api-key" https://api.driftguard.ai/models/
+```
+    """,
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    contact={
+        "name": "DriftGuard Support",
+        "url": "https://driftguard.ai/support",
+        "email": "support@driftguard.ai"
+    },
+    license_info={
+        "name": "MIT",
+        "url": "https://opensource.org/licenses/MIT",
+    }
+)
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(models.router, prefix="/models", tags=["models"])
