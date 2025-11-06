@@ -3,6 +3,8 @@ import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
+import AlertSettingsPage from "./pages/AlertSettingsPage";
+import ModelDriftPage from "./pages/ModelDriftPage";
 
 function App() {
   return (
@@ -15,6 +17,22 @@ function App() {
             element={
               <ProtectedRoute>
                 <DashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/alerts"
+            element={
+              <ProtectedRoute>
+                <AlertSettingsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/models/:modelId/drift"
+            element={
+              <ProtectedRoute>
+                <ModelDriftPage />
               </ProtectedRoute>
             }
           />

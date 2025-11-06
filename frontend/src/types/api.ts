@@ -64,8 +64,15 @@ export interface DriftStatus {
   drift_score?: number;
   p_value?: number;
   samples?: number;
-  timestamp?: string;
   message?: string;
+}
+
+export interface DriftHistoryPoint {
+  timestamp: string;
+  drift_score: number;
+  drift_detected: boolean;
+  p_value: number;
+  samples: number;
 }
 
 export interface DriftHistoryPoint {

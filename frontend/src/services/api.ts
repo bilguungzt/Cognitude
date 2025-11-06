@@ -78,10 +78,8 @@ class DriftGuardAPI {
   }
 
   // Models
-  async getModels(skip = 0, limit = 100): Promise<MLModel[]> {
-    const response = await this.client.get<MLModel[]>("/models/", {
-      params: { skip, limit },
-    });
+  async getModels(): Promise<MLModel[]> {
+    const response = await this.client.get<MLModel[]>("/models");
     return response.data;
   }
 

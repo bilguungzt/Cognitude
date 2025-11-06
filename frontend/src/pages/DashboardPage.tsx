@@ -3,6 +3,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { api } from "../services/api";
 import type { MLModel, DriftStatus } from "../types/api";
 import { useNavigate } from "react-router-dom";
+import RegisterModelModal from "../components/RegisterModelModal";
 
 export default function DashboardPage() {
   const [models, setModels] = useState<MLModel[]>([]);
@@ -11,6 +12,7 @@ export default function DashboardPage() {
   >({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
   const { logout } = useAuth();
   const navigate = useNavigate();
 
@@ -141,16 +143,10 @@ export default function DashboardPage() {
               </h1>
             </div>
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => navigate("/alerts")}
-                className="btn-ghost"
-              >
+              <button onClick={() => navigate("/alerts")} className="btn-ghost">
                 Alert Settings
               </button>
-              <button
-                onClick={handleLogout}
-                className="btn-secondary"
-              >
+              <button onClick={handleLogout} className="btn-secondary">
                 Logout
               </button>
             </div>
@@ -169,7 +165,7 @@ export default function DashboardPage() {
             </p>
           </div>
           <button
-            onClick={() => navigate("/models/new")}
+            onClick={() => setShowRegisterModal(true)}
             className="btn-primary px-6 py-3 shadow-md hover:shadow-lg flex items-center gap-2"
           >
             <svg
@@ -218,10 +214,11 @@ export default function DashboardPage() {
               No models yet
             </h3>
             <p className="text-gray-600 text-lg mb-8 max-w-md mx-auto">
-              Get started by registering your first ML model and start monitoring for drift
+              Get started by registering your first ML model and start
+              monitoring for drift
             </p>
             <button
-              onClick={() => navigate("/models/new")}
+              onClick={() => setShowRegisterModal(true)}
               className="btn-primary px-6 py-3 shadow-md hover:shadow-lg inline-flex items-center gap-2"
             >
               <svg
@@ -243,10 +240,7 @@ export default function DashboardPage() {
         ) : (
           <div className="grid gap-6">
             {models.map((model) => (
-              <div
-                key={model.id}
-                className="card-hover"
-              >
+              <div key={model.id} className="card-hover">
                 <div className="p-6">
                   <div className="flex items-start justify-between mb-4">
                     <div>
@@ -263,23 +257,33 @@ export default function DashboardPage() {
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
                     <div>
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Model ID</p>
-                      <p className="font-semibold text-gray-900 mt-1">#{model.id}</p>
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                        Model ID
+                      </p>
+                      <p className="font-semibold text-gray-900 mt-1">
+                        #{model.id}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Features</p>
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                        Features
+                      </p>
                       <p className="font-semibold text-gray-900 mt-1">
                         {model.features.length}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Created</p>
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                        Created
+                      </p>
                       <p className="font-semibold text-gray-900 mt-1">
                         {new Date(model.created_at).toLocaleDateString()}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Last Checked</p>
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                        Last Checked
+                      </p>
                       <p className="font-semibold text-gray-900 mt-1">
                         {driftStatuses[model.id]?.timestamp
                           ? new Date(
@@ -310,6 +314,13 @@ export default function DashboardPage() {
           </div>
         )}
       </main>
+
+      {/* Register Model Modal */}
+      <RegisterModelModal
+        isOpen={showRegisterModal}
+        onClose={() => setShowRegisterModal(false)}
+        onSuccess={() => loadModels()}
+      />
     </div>
   );
 }

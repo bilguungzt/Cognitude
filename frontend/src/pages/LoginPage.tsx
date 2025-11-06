@@ -129,7 +129,7 @@ export default function LoginPage() {
           </div>
 
           {/* Success Message for API Key */}
-          {showKey && mode === "login" && (
+          {showKey && mode === "login" && apiKey && (
             <div className="alert-success mb-6">
               <div className="flex items-start gap-3">
                 <svg
@@ -143,14 +143,29 @@ export default function LoginPage() {
                     clipRule="evenodd"
                   />
                 </svg>
-                <div>
+                <div className="flex-1">
                   <h3 className="text-sm font-semibold">
                     Registration successful!
                   </h3>
-                  <p className="text-sm mt-1">
+                  <p className="text-sm mt-1 mb-3">
                     Your API key has been generated. Please save it securely -
                     you won't see it again!
                   </p>
+                  <div className="bg-white rounded-lg p-3 border border-green-200">
+                    <code className="text-xs font-mono text-gray-900 break-all">
+                      {apiKey}
+                    </code>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(apiKey);
+                      alert("API key copied to clipboard!");
+                    }}
+                    className="mt-3 text-sm font-medium text-green-700 hover:text-green-800 underline"
+                  >
+                    Copy to Clipboard
+                  </button>
                 </div>
               </div>
             </div>
