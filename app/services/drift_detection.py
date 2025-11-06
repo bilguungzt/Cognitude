@@ -45,14 +45,10 @@ class DriftDetectionService:
             loc=model.baseline_mean, scale=model.baseline_std, size=1000
         )
 
-        # e. Check if current values follow a normal distribution
-        _, p_value_normality = stats.shapiro(current_values)
-        if p_value_normality < 0.05:
-            # If not normally distributed, use Mann-Whitney U test
-            ks_statistic, p_value = stats.mannwhitneyu(baseline_distribution, current_values)
-        else:
-            # If normally distributed, use KS test
-            ks_statistic, p_value = stats.ks_2samp(baseline_distribution, current_values)
+        # e. Run KS test (Kolmogorov-Smirnov two-sample test)
+        statistic, pvalue = stats.ks_2samp(baseline_distribution, current_values)  # type: ignore
+        ks_statistic = float(statistic)
+        p_value = float(pvalue)
 
         drift_detected = p_value < 0.05
 
@@ -61,15 +57,15 @@ class DriftDetectionService:
             crud.create_drift_alert(
                 db=self.db,
                 model_id=model_id,
-                alert_type="ks_test" if p_value_normality >= 0.05 else "mannwhitneyu",
-                drift_score=p_value,
+                alert_type="data_drift",
+                drift_score=ks_statistic,
                 detected_at=datetime.now(timezone.utc),
             )
 
         # g. Always return a dictionary with the results
         return {
             "drift_detected": drift_detected,
-            "drift_score": ks_statistic if p_value_normality >= 0.05 else None,
+            "drift_score": ks_statistic,
             "p_value": p_value,
             "samples": len(current_values),
             "timestamp": datetime.now(timezone.utc).isoformat(),
