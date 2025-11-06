@@ -1,5 +1,5 @@
-import axios from 'axios';
-import type { AxiosInstance, AxiosError } from 'axios';
+import axios from "axios";
+import type { AxiosInstance, AxiosError } from "axios";
 import type {
   Organization,
   MLModel,
@@ -12,9 +12,9 @@ import type {
   AlertChannel,
   CreateAlertChannelRequest,
   ApiError,
-} from '../types/api';
+} from "../types/api";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 class DriftGuardAPI {
   private client: AxiosInstance;
@@ -24,12 +24,12 @@ class DriftGuardAPI {
     this.client = axios.create({
       baseURL: API_BASE_URL,
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
     });
 
     // Load API key from localStorage
-    this.apiKey = localStorage.getItem('driftguard_api_key');
+    this.apiKey = localStorage.getItem("driftguard_api_key");
     if (this.apiKey) {
       this.setApiKey(this.apiKey);
     }
@@ -41,7 +41,7 @@ class DriftGuardAPI {
         if (error.response?.status === 401) {
           // Unauthorized - clear API key and redirect to login
           this.clearApiKey();
-          window.location.href = '/login';
+          window.location.href = "/login";
         }
         return Promise.reject(error);
       }
@@ -51,14 +51,14 @@ class DriftGuardAPI {
   // Auth methods
   setApiKey(apiKey: string) {
     this.apiKey = apiKey;
-    localStorage.setItem('driftguard_api_key', apiKey);
-    this.client.defaults.headers.common['X-API-Key'] = apiKey;
+    localStorage.setItem("driftguard_api_key", apiKey);
+    this.client.defaults.headers.common["X-API-Key"] = apiKey;
   }
 
   clearApiKey() {
     this.apiKey = null;
-    localStorage.removeItem('driftguard_api_key');
-    delete this.client.defaults.headers.common['X-API-Key'];
+    localStorage.removeItem("driftguard_api_key");
+    delete this.client.defaults.headers.common["X-API-Key"];
   }
 
   getApiKey(): string | null {
@@ -71,13 +71,15 @@ class DriftGuardAPI {
 
   // Organization / Auth
   async register(name: string): Promise<Organization> {
-    const response = await this.client.post<Organization>('/auth/register', { name });
+    const response = await this.client.post<Organization>("/auth/register", {
+      name,
+    });
     return response.data;
   }
 
   // Models
   async getModels(skip = 0, limit = 100): Promise<MLModel[]> {
-    const response = await this.client.get<MLModel[]>('/models/', {
+    const response = await this.client.get<MLModel[]>("/models/", {
       params: { skip, limit },
     });
     return response.data;
@@ -89,7 +91,7 @@ class DriftGuardAPI {
   }
 
   async createModel(model: CreateModelRequest): Promise<MLModel> {
-    const response = await this.client.post<MLModel>('/models/', model);
+    const response = await this.client.post<MLModel>("/models/", model);
     return response.data;
   }
 
@@ -154,14 +156,17 @@ class DriftGuardAPI {
 
   // Alert Channels
   async getAlertChannels(): Promise<AlertChannel[]> {
-    const response = await this.client.get<AlertChannel[]>('/alert-channels/');
+    const response = await this.client.get<AlertChannel[]>("/alert-channels/");
     return response.data;
   }
 
   async createAlertChannel(
     channel: CreateAlertChannelRequest
   ): Promise<AlertChannel> {
-    const response = await this.client.post<AlertChannel>('/alert-channels/', channel);
+    const response = await this.client.post<AlertChannel>(
+      "/alert-channels/",
+      channel
+    );
     return response.data;
   }
 
@@ -171,7 +176,7 @@ class DriftGuardAPI {
 
   // Health check
   async healthCheck(): Promise<{ message: string }> {
-    const response = await this.client.get<{ message: string }>('/');
+    const response = await this.client.get<{ message: string }>("/");
     return response.data;
   }
 }

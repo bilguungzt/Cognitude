@@ -11,7 +11,7 @@ export interface Organization {
 export interface ModelFeature {
   id?: number;
   feature_name: string;
-  feature_type: 'numeric' | 'categorical';
+  feature_type: "numeric" | "categorical";
   order: number;
   baseline_stats?: {
     samples?: number[];
@@ -37,7 +37,7 @@ export interface CreateModelRequest {
   name: string;
   version: string;
   description?: string;
-  features: Omit<ModelFeature, 'id'>[];
+  features: Omit<ModelFeature, "id">[];
 }
 
 // Predictions
@@ -79,7 +79,7 @@ export interface DriftHistoryPoint {
 // Alert Channels
 export interface AlertChannel {
   id: number;
-  channel_type: 'email' | 'slack';
+  channel_type: "email" | "slack";
   configuration: EmailConfig | SlackConfig;
   is_active: boolean;
   created_at: string;
@@ -95,7 +95,7 @@ export interface SlackConfig {
 }
 
 export interface CreateAlertChannelRequest {
-  channel_type: 'email' | 'slack';
+  channel_type: "email" | "slack";
   configuration: EmailConfig | SlackConfig;
 }
 
