@@ -109,6 +109,62 @@ def get_models(
     )
 
 
+@router.get(
+    "/{model_id}",
+    response_model=schemas.Model,
+    summary="Get a single model by ID",
+    description="""
+    Get detailed information about a specific model including all its features.
+    """,
+    responses={
+        200: {
+            "description": "Model details",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": 1,
+                        "name": "fraud_detector_v1",
+                        "version": "1.0.0",
+                        "description": "Detects fraudulent transactions",
+                        "organization_id": 1,
+                        "created_at": "2025-11-05T10:00:00Z",
+                        "updated_at": "2025-11-05T10:00:00Z",
+                        "features": [
+                            {
+                                "id": 1,
+                                "feature_name": "amount",
+                                "feature_type": "numeric",
+                                "order": 1
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Model not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Model not found"}
+                }
+            }
+        }
+    }
+)
+def get_model_by_id(
+    model_id: int,
+    db: Session = Depends(get_db),
+    organization: models.Organization = Depends(get_organization_from_api_key),
+):
+    """Get a single model by ID."""
+    db_model = crud.get_model(db, model_id=model_id)
+    if not db_model:
+        raise HTTPException(status_code=404, detail="Model not found")
+    if db_model.organization_id != organization.id:  # type: ignore
+        raise HTTPException(status_code=404, detail="Model not found")
+    return db_model
+
+
 @router.put(
     "/{model_id}/features/{feature_id}",
     summary="Update feature baseline statistics",

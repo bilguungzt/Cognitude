@@ -33,12 +33,12 @@ export default function ModelDriftPage() {
 
   // Format timestamp for chart display
   const formatChartData = (data: DriftHistoryPoint[]) => {
-    return data.map(point => ({
+    return data.map((point) => ({
       ...point,
-      timestamp: new Date(point.timestamp).toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric' 
-      })
+      timestamp: new Date(point.timestamp).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      }),
     }));
   };
 
@@ -211,7 +211,8 @@ export default function ModelDriftPage() {
           {driftHistory.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-gray-600">
-                No drift history available yet. Run drift detection to see results here.
+                No drift history available yet. Run drift detection to see
+                results here.
               </p>
             </div>
           ) : (
