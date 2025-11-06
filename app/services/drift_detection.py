@@ -1,11 +1,13 @@
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Union
+import asyncio
 
 import numpy as np
 from scipy import stats
 from sqlalchemy.orm import Session
 
 from .. import crud, models
+from .notifications import NotificationService
 
 
 class DriftDetectionService:
@@ -66,6 +68,58 @@ class DriftDetectionService:
                 drift_score=ks_statistic,
                 detected_at=datetime.now(timezone.utc),
             )
+            
+            # Send notifications through all active channels
+            notification_service = NotificationService(self.db)
+            
+            # Get all active alert channels for this model's organization
+            alert_channels = (
+                self.db.query(models.AlertChannel)
+                .filter(
+                    models.AlertChannel.organization_id == model.organization_id,
+                    models.AlertChannel.is_active == True  # noqa: E712
+                )
+                .all()
+            )
+            
+            # Send notifications
+            for channel in alert_channels:
+                try:
+                    # Run async functions in the event loop
+                    loop = None
+                    try:
+                        loop = asyncio.get_running_loop()
+                    except RuntimeError:
+                        loop = None
+                    
+                    if str(channel.channel_type) == "email":
+                        if loop:
+                            asyncio.create_task(
+                                notification_service.send_email_alert(
+                                    channel, model, ks_statistic, p_value
+                                )
+                            )
+                        else:
+                            asyncio.run(
+                                notification_service.send_email_alert(
+                                    channel, model, ks_statistic, p_value
+                                )
+                            )
+                    elif str(channel.channel_type) == "slack":
+                        if loop:
+                            asyncio.create_task(
+                                notification_service.send_slack_alert(
+                                    channel, model, ks_statistic, p_value
+                                )
+                            )
+                        else:
+                            asyncio.run(
+                                notification_service.send_slack_alert(
+                                    channel, model, ks_statistic, p_value
+                                )
+                            )
+                except Exception as e:
+                    print(f"Failed to send notification via {channel.channel_type}: {e}")
 
         # g. Always return a dictionary with the results
         return {

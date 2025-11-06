@@ -128,3 +128,17 @@ def apply_migrations() -> None:
 			if "acknowledged_at" not in alert_columns:
 				connection.execute(text("ALTER TABLE drift_alerts ADD COLUMN acknowledged_at TIMESTAMPTZ"))
 
+		# Migrate alert_channels table
+		if "alert_channels" in inspector.get_table_names():
+			channel_columns = {column["name"] for column in inspector.get_columns("alert_channels")}
+			
+			if "is_active" not in channel_columns:
+				connection.execute(text("ALTER TABLE alert_channels ADD COLUMN is_active BOOLEAN DEFAULT TRUE"))
+			
+			if "created_at" not in channel_columns:
+				connection.execute(
+					text(
+						"ALTER TABLE alert_channels ADD COLUMN created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()"
+					)
+				)
+

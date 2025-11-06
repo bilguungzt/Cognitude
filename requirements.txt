@@ -11,3 +11,5 @@ httpx
 scipy
 numpy
 apscheduler
+aiohttp
+fastapi-mail

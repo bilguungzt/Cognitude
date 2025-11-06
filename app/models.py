@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import JSONB
@@ -86,5 +86,7 @@ class AlertChannel(Base):
     organization_id = Column(Integer, ForeignKey("organizations.id"))
     channel_type = Column(String)
     configuration = Column(JSONB)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     organization = relationship("Organization", back_populates="alert_channels")
