@@ -20,7 +20,12 @@ class DriftDetectionService:
         """
         # a. Query model and verify it exists and has a baseline
         model = self.db.query(models.Model).filter(models.Model.id == model_id).first()
-        if not model or model.baseline_mean is None or model.baseline_std is None:
+        if not model:
+            return None
+            
+        # Check if model has baseline samples
+        baseline_features = [f for f in model.features if f.baseline_stats and 'samples' in f.baseline_stats]
+        if not baseline_features:
             return None
 
         # b. Get predictions from the last N days
@@ -40,10 +45,10 @@ class DriftDetectionService:
 
         current_values = [p.prediction_value for p in predictions]
 
-        # d. Create a baseline distribution from the model's stored stats
-        baseline_distribution = np.random.normal(
-            loc=model.baseline_mean, scale=model.baseline_std, size=1000
-        )
+        # d. Create baseline distribution from actual historical data
+        # Using the first feature's baseline samples as the baseline distribution
+        baseline_feature = baseline_features[0]
+        baseline_distribution = np.array(baseline_feature.baseline_stats['samples'])
 
         # e. Run KS test (Kolmogorov-Smirnov two-sample test)
         statistic, pvalue = stats.ks_2samp(baseline_distribution, current_values)  # type: ignore
