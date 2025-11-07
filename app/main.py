@@ -69,6 +69,8 @@ app.add_middleware(
         "http://localhost:5173",  # Vite dev server
         "http://localhost:3000",  # Production frontend
         "http://localhost:8080",  # Alternative frontend port
+        "https://driftassure-frontend-c83ok9o36-bilguungzts-projects.vercel.app",  # Vercel deployment
+        "https://*.vercel.app",  # All Vercel preview deployments
     ],
     allow_credentials=True,
     allow_methods=["*"],
