@@ -22,7 +22,7 @@ class AlertChannelCreate(BaseModel):
     description="""
     Configure email or Slack notifications for drift alerts.
     
-    When drift is detected, DriftGuard will automatically send notifications 
+    When drift is detected, DriftAssure will automatically send notifications 
     through all active channels configured for your organization.
     
     **Email Example:**

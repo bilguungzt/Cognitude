@@ -95,7 +95,7 @@ export default function LoginPage() {
             </svg>
           </div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-            DriftGuard AI
+            DriftAssure AI
           </h1>
           <p className="text-gray-600 mt-2 text-lg">
             ML Model Drift Detection & Monitoring
@@ -241,7 +241,7 @@ export default function LoginPage() {
         <p className="text-center text-sm text-gray-600 mt-6">
           Need help? Check out the{" "}
           <a
-            href="http://localhost:8000/docs"
+            href="https://api.driftassure.com/redoc"
             target="_blank"
             rel="noopener noreferrer"
             className="text-indigo-600 hover:text-indigo-700 font-medium"

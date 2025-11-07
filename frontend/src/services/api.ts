@@ -16,7 +16,7 @@ import type {
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-class DriftGuardAPI {
+class DriftAssureAPI {
   private client: AxiosInstance;
   private apiKey: string | null = null;
 
@@ -29,7 +29,7 @@ class DriftGuardAPI {
     });
 
     // Load API key from localStorage
-    this.apiKey = localStorage.getItem("driftguard_api_key");
+    this.apiKey = localStorage.getItem("driftassure_api_key");
     if (this.apiKey) {
       this.setApiKey(this.apiKey);
     }
@@ -51,13 +51,13 @@ class DriftGuardAPI {
   // Auth methods
   setApiKey(apiKey: string) {
     this.apiKey = apiKey;
-    localStorage.setItem("driftguard_api_key", apiKey);
+    localStorage.setItem("driftassure_api_key", apiKey);
     this.client.defaults.headers.common["X-API-Key"] = apiKey;
   }
 
   clearApiKey() {
     this.apiKey = null;
-    localStorage.removeItem("driftguard_api_key");
+    localStorage.removeItem("driftassure_api_key");
     delete this.client.defaults.headers.common["X-API-Key"];
   }
 
@@ -180,5 +180,5 @@ class DriftGuardAPI {
 }
 
 // Export singleton instance
-export const api = new DriftGuardAPI();
+export const api = new DriftAssureAPI();
 export default api;

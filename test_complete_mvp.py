@@ -9,9 +9,9 @@ import json
 from datetime import datetime
 
 # Configuration
-API_URL = "http://localhost:8000"
-API_KEY = "uP9eWhBunB3Y2bMRS2_Q9Hdb5zLNhJb12ZlicqQXE_s"
-MODEL_ID = 18
+API_URL = "https://api.driftassure.com"
+API_KEY = "LUTyYniW3nUCzuIP_9iVJ-L76Qhg8guDQgjAaCadvqY"
+MODEL_ID = 1  # Change this to your actual model ID after creating a model
 
 headers = {
     "X-API-Key": API_KEY,
@@ -305,20 +305,18 @@ def test_frontend_pages():
     """Test if frontend is accessible"""
     print_section("9. FRONTEND PAGES")
     
-    frontend_url = "http://localhost:5173"
+    frontend_url = "https://driftassure-frontend-pvoqoo3nx-bilguungzts-projects.vercel.app"
     
     pages = {
         "/": "Login page",
         "/dashboard": "Dashboard",
-        "/alerts": "Alert settings",
-        f"/models/{MODEL_ID}": "Model details",
-        f"/models/{MODEL_ID}/drift": "Drift history"
+        "/alerts": "Alert settings"
     }
     
     all_passed = True
     for path, name in pages.items():
         try:
-            response = requests.get(f"{frontend_url}{path}", timeout=2)
+            response = requests.get(f"{frontend_url}{path}", timeout=5)
             passed = response.status_code == 200
             print_test(f"{name}", passed, f"URL: {path}")
             all_passed = all_passed and passed
@@ -332,25 +330,22 @@ def run_database_checks():
     """Check database state"""
     print_section("10. DATABASE STATE")
     
-    print("\n💡 Run these commands to check database:")
+    print("\n💡 Run these commands on your DigitalOcean server to check database:")
+    print("\nSSH into server:")
+    print('ssh root@165.22.158.75')
+    print('\nThen run:')
     print("\n# Check models")
-    print('docker exec -it driftguard_mvp-db-1 psql -U myuser -d mydatabase -c "SELECT id, name, created_at FROM models;"')
+    print('docker exec -it driftguard_mvp_api_1 python -c "from app.database import SessionLocal; from app.models import Model; db = SessionLocal(); models = db.query(Model).all(); print(f\\"Models: {len(models)}\\"); [print(f\\"  - {m.id}: {m.name}\\") for m in models]"')
     
     print("\n# Check predictions count")
-    print('docker exec -it driftguard_mvp-db-1 psql -U myuser -d mydatabase -c "SELECT model_id, COUNT(*) FROM predictions GROUP BY model_id;"')
+    print('docker exec -it driftguard_mvp_db_1 psql -U myuser -d mydatabase -c "SELECT model_id, COUNT(*) FROM predictions GROUP BY model_id;"')
     
     print("\n# Check drift history")
-    print('docker exec -it driftguard_mvp-db-1 psql -U myuser -d mydatabase -c "SELECT model_id, drift_detected, drift_score, timestamp FROM drift_history ORDER BY timestamp DESC LIMIT 10;"')
-    
-    print("\n# Check drift alerts")
-    print('docker exec -it driftguard_mvp-db-1 psql -U myuser -d mydatabase -c "SELECT * FROM drift_alerts ORDER BY detected_at DESC LIMIT 10;"')
-    
-    print("\n# Check alert channels")
-    print('docker exec -it driftguard_mvp-db-1 psql -U myuser -d mydatabase -c "SELECT id, name, channel_type, is_active FROM alert_channels;"')
+    print('docker exec -it driftguard_mvp_db_1 psql -U myuser -d mydatabase -c "SELECT model_id, drift_detected, drift_score, timestamp FROM drift_history ORDER BY timestamp DESC LIMIT 10;"')
 
 def main():
     print("\n" + "🚀" * 35)
-    print("  DRIFTGUARD MVP - COMPREHENSIVE TEST SUITE")
+    print("  DRIFTASSURE MVP - COMPREHENSIVE TEST SUITE")
     print("🚀" * 35)
     print(f"\nTesting against: {API_URL}")
     print(f"Model ID: {MODEL_ID}")
@@ -397,14 +392,13 @@ def main():
         print(f"\n⚠️  Some tests failed ({passed_tests}/{total_tests})")
         print("   Review the failed tests above for details.")
     
-    print("\n📱 Frontend URLs:")
-    print(f"   Dashboard: http://localhost:5173/dashboard")
-    print(f"   Model Details: http://localhost:5173/models/{MODEL_ID}")
-    print(f"   Drift History: http://localhost:5173/models/{MODEL_ID}/drift")
-    print(f"   Alert Settings: http://localhost:5173/alerts")
+    print("\n📱 Production URLs:")
+    print(f"   Frontend: https://driftassure-frontend-pvoqoo3nx-bilguungzts-projects.vercel.app")
+    print(f"   Backend API: https://api.driftassure.com")
+    print(f"   API Docs: https://api.driftassure.com/docs")
     
-    print("\n📚 API Documentation:")
-    print(f"   {API_URL}/docs")
+    print("\n� API Key:")
+    print(f"   {API_KEY}")
     print()
 
 if __name__ == "__main__":

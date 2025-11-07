@@ -18,11 +18,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="DriftGuard AI",
+    title="DriftAssure AI",
     description="""
 ## ML Model Monitoring & Drift Detection Platform
 
-DriftGuard AI helps ML teams detect data drift in production models and get alerted before model performance degrades.
+DriftAssure AI helps ML teams detect data drift in production models and get alerted before model performance degrades.
 
 ### Features
 
@@ -45,16 +45,16 @@ DriftGuard AI helps ML teams detect data drift in production models and get aler
 All endpoints (except `/auth/register`) require an API key in the `X-API-Key` header.
 
 ```bash
-curl -H "X-API-Key: your-api-key" https://api.driftguard.ai/models/
+curl -H "X-API-Key: your-api-key" https://api.driftassure.com/models/
 ```
     """,
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
     contact={
-        "name": "DriftGuard Support",
-        "url": "https://driftguard.ai/support",
-        "email": "support@driftguard.ai"
+        "name": "DriftAssure Support",
+        "url": "https://driftassure.com/support",
+        "email": "support@driftassure.com"
     },
     license_info={
         "name": "MIT",
@@ -85,7 +85,7 @@ app.include_router(alert_channels.router, prefix="/alert-channels", tags=["alert
 
 @app.get("/")
 def read_root():
-    return {"message": "DriftGuard AI is running"}
+    return {"message": "DriftAssure AI is running"}
 
 @app.get("/health", tags=["system"])
 def health_check():
@@ -94,7 +94,7 @@ def health_check():
     """
     return {
         "status": "healthy",
-        "service": "DriftGuard AI",
+        "service": "DriftAssure AI",
         "version": "1.0.0",
         "timestamp": "2025-11-06T00:00:00Z"
     }

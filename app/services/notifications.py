@@ -18,7 +18,7 @@ class NotificationService:
         self.mail_conf = ConnectionConfig(
             MAIL_USERNAME=os.getenv("SMTP_USERNAME", ""),
             MAIL_PASSWORD=os.getenv("SMTP_PASSWORD", ""),
-            MAIL_FROM=os.getenv("FROM_EMAIL", "alerts@driftguard.ai"),
+            MAIL_FROM=os.getenv("FROM_EMAIL", "alerts@driftassure.com"),
             MAIL_PORT=int(os.getenv("SMTP_PORT", "587")),
             MAIL_SERVER=os.getenv("SMTP_SERVER", "smtp.gmail.com"),
             MAIL_STARTTLS=True,
@@ -98,7 +98,7 @@ class NotificationService:
                     </ul>
                 </p>
                 <p>
-                    <a href="https://app.driftguard.ai/models/{model.id}" 
+                    <a href="https://driftassure-frontend-pvoqoo3nx-bilguungzts-projects.vercel.app/models/{model.id}" 
                        style="background-color: #1976d2; color: white; padding: 10px 20px; 
                               text-decoration: none; border-radius: 5px;">
                         View Dashboard
@@ -186,7 +186,7 @@ class NotificationService:
                                         "type": "plain_text",
                                         "text": "View Dashboard"
                                     },
-                                    "url": f"https://app.driftguard.ai/models/{model.id}",
+                                    "url": f"https://driftassure-frontend-pvoqoo3nx-bilguungzts-projects.vercel.app/models/{model.id}",
                                     "style": "primary"
                                 }
                             ]

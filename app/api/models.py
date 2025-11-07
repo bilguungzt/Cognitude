@@ -16,7 +16,7 @@ router = APIRouter()
     description="""
     Register a new ML model for drift monitoring.
     
-    Define your model's features so DriftGuard can track drift per-feature.
+    Define your model's features so DriftAssure can track drift per-feature.
     
     **Example:**
     ```bash

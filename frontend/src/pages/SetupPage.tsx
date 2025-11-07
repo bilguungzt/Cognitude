@@ -26,7 +26,7 @@ export default function SetupPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const key = localStorage.getItem("driftguard_api_key") || "";
+    const key = localStorage.getItem("driftassure_api_key") || "";
     setApiKey(key);
   }, []);
 
@@ -53,7 +53,7 @@ export default function SetupPage() {
             feature_1: 100,
             feature_2: 0.5,
             feature_3: "category_a",
-            source: "driftguard_setup_page",
+            source: "driftassure_setup_page",
             test: true,
           },
           timestamp: new Date().toISOString(),
@@ -179,7 +179,7 @@ export default function SetupPage() {
   };
 
   const API_BASE_URL =
-    import.meta.env.VITE_API_URL || "https://api.driftguard.ai"; // Production URL by default
+    import.meta.env.VITE_API_URL || "https://api.driftassure.com"; // Production URL by default
 
   const codeSnippets: Record<Language, { code: string; install: string }> = {
     python: {
@@ -353,7 +353,7 @@ logPrediction();`,
                   Get Your API Key
                 </h4>
                 <p className="text-gray-600 mb-3">
-                  Your API key authenticates all requests to DriftGuard.
+                  Your API key authenticates all requests to DriftAssure.
                 </p>
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                   <div className="flex items-center gap-2">
