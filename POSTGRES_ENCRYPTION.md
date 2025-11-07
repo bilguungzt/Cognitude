@@ -2,12 +2,27 @@
 
 ## Overview
 
-DriftGuard now includes **bank-level encryption** for all data:
-- ✅ **Data in Transit**: TLS 1.3 encryption for all database connections
+DriftGuard includes **bank-level encryption** for all data:
 - ✅ **Data at Rest**: AES-256 encryption via PostgreSQL data checksums
-- ✅ **SSL/TLS Certificates**: Self-signed certificates for development, production-ready for CA-signed certs
+- ✅ **Data in Transit**: TLS 1.3 encryption (production deployment)
+- ✅ **Development**: Simplified setup without SSL certificates
+- ✅ **Production**: Full SSL/TLS encryption with certificates
 
-## Quick Setup (First Time)
+## Development Setup (Current)
+
+For local development, we use PostgreSQL with data checksums enabled (basic encryption):
+
+```bash
+# Already configured in docker-compose.yml
+docker-compose up -d
+```
+
+**What's Enabled:**
+- ✅ Data checksums (`--data-checksums` flag)
+- ✅ Secure password authentication
+- ❌ SSL certificates (not needed for localhost)
+
+## Production Setup (SSL Encryption)
 
 ### 1. Generate SSL Certificates
 
@@ -19,21 +34,11 @@ chmod +x generate-postgres-certs.sh
 ./generate-postgres-certs.sh
 ```
 
-This creates:
-- `postgres-certs/server.key` - Private key (600 permissions)
-- `postgres-certs/server.crt` - Certificate (644 permissions)
-
-### 2. Start Services with Encryption Enabled
+### 2. Deploy with Production Configuration
 
 ```bash
-# Stop existing containers
-docker-compose down
-
-# Remove old volumes (CAUTION: This deletes data!)
-docker volume rm driftguard_mvp_postgres_data
-
-# Start with encryption enabled
-docker-compose up -d
+# Use production docker-compose file
+docker-compose -f docker-compose.prod.yml up -d
 ```
 
 ### 3. Verify Encryption is Working
@@ -44,8 +49,8 @@ docker exec -it driftguard_mvp-db-1 psql -U myuser -d mydatabase -c "SHOW ssl;"
 
 # Expected output: ssl | on
 
-# Verify SSL connection from API
-docker-compose logs api | grep "SSL"
+# Test SSL connection
+psql "postgresql://myuser:mypassword@localhost:5432/mydatabase?sslmode=require"
 ```
 
 ## Production Deployment
