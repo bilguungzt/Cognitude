@@ -137,7 +137,7 @@ export default function DashboardPage() {
                   />
                 </svg>
               </div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+              <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                 DriftAssure AI
               </h1>
             </div>
@@ -220,19 +220,19 @@ export default function DashboardPage() {
       {/* Main Content */}
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-32 w-full">
         {/* Action Bar */}
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-bold text-gray-900">Your ML Models</h2>
-            <p className="text-gray-600 mt-2">
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Your ML Models</h2>
+            <p className="text-sm sm:text-base text-gray-600 mt-2">
               Monitor drift and performance across all registered models
             </p>
           </div>
           <button
             onClick={() => setShowRegisterModal(true)}
-            className="btn-primary px-6 py-3 shadow-md hover:shadow-lg flex items-center gap-2"
+            className="btn-primary px-4 sm:px-6 py-2 sm:py-3 shadow-md hover:shadow-lg flex items-center gap-2 text-sm sm:text-base w-full sm:w-auto justify-center whitespace-nowrap"
           >
             <svg
-              className="w-5 h-5"
+              className="w-4 h-4 sm:w-5 sm:h-5"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -244,7 +244,8 @@ export default function DashboardPage() {
                 d="M12 4v16m8-8H4"
               />
             </svg>
-            Register New Model
+            <span className="hidden sm:inline">Register New Model</span>
+            <span className="sm:hidden">Register Model</span>
           </button>
         </div>
 
@@ -273,19 +274,19 @@ export default function DashboardPage() {
                 />
               </svg>
             </div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-3">
+            <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3">
               No models yet
             </h3>
-            <p className="text-gray-600 text-lg mb-8 max-w-md mx-auto">
+            <p className="text-base sm:text-lg text-gray-600 mb-8 max-w-md mx-auto px-4">
               Get started by registering your first ML model and start
               monitoring for drift
             </p>
             <button
               onClick={() => setShowRegisterModal(true)}
-              className="btn-primary px-6 py-3 shadow-md hover:shadow-lg inline-flex items-center gap-2"
+              className="btn-primary px-4 sm:px-6 py-2 sm:py-3 shadow-md hover:shadow-lg inline-flex items-center gap-2 text-sm sm:text-base"
             >
               <svg
-                className="w-5 h-5"
+                className="w-4 h-4 sm:w-5 sm:h-5"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -304,13 +305,13 @@ export default function DashboardPage() {
           <div className="grid gap-6">
             {models.map((model) => (
               <div key={model.id} className="card-hover">
-                <div className="p-6">
-                  <div className="flex items-start justify-between mb-4">
+                <div className="p-4 sm:p-6">
+                  <div className="flex flex-col sm:flex-row items-start justify-between mb-4 gap-3">
                     <div>
-                      <h3 className="text-xl font-bold text-gray-900">
+                      <h3 className="text-lg sm:text-xl font-bold text-gray-900">
                         {model.name}
                       </h3>
-                      <p className="text-gray-600 mt-1.5">
+                      <p className="text-sm sm:text-base text-gray-600 mt-1.5">
                         Version {model.version}
                         {model.description && ` • ${model.description}`}
                       </p>
@@ -353,16 +354,16 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  <div className="flex gap-3">
+                  <div className="flex flex-col sm:flex-row gap-3">
                     <button
                       onClick={() => navigate(`/models/${model.id}`)}
-                      className="btn-primary px-5 py-2.5"
+                      className="btn-primary px-4 sm:px-5 py-2 sm:py-2.5 text-sm sm:text-base"
                     >
                       View Details
                     </button>
                     <button
                       onClick={() => navigate(`/models/${model.id}/drift`)}
-                      className="btn-ghost px-5 py-2.5"
+                      className="btn-ghost px-4 sm:px-5 py-2 sm:py-2.5 text-sm sm:text-base"
                     >
                       Drift History
                     </button>

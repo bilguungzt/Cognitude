@@ -328,34 +328,34 @@ logPrediction();`,
                 d="M13 10V3L4 14h7v7l9-11h-7z"
               />
             </svg>
-            <h2 className="text-3xl font-bold">Get Started in 5 Minutes</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold">Get Started in 5 Minutes</h2>
           </div>
-          <p className="text-blue-100 text-lg">
+          <p className="text-blue-100 text-base sm:text-lg">
             Log your first prediction and start monitoring for drift. Copy-paste
             the code below and you're done.
           </p>
         </div>
 
         {/* Quick Start Steps */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
-          <h3 className="text-xl font-bold text-gray-900 mb-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-8">
+          <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-6">
             🚀 Quick Start Guide
           </h3>
 
           {/* Step 1: API Key */}
           <div className="mb-6 pb-6 border-b border-gray-200">
-            <div className="flex items-start gap-4">
-              <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white font-bold bg-green-500">
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-white font-bold bg-green-500 text-sm sm:text-base">
                 {apiKey ? "✓" : "1"}
               </div>
               <div className="flex-1">
-                <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                <h4 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">
                   Get Your API Key
                 </h4>
-                <p className="text-gray-600 mb-3">
+                <p className="text-sm sm:text-base text-gray-600 mb-3">
                   Your API key authenticates all requests to DriftAssure.
                 </p>
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
                     <code className="flex-1 text-sm font-mono text-gray-800 break-all">
                       {apiKey
@@ -385,27 +385,27 @@ logPrediction();`,
 
           {/* Step 2: Register Model - IMPROVED WITH INLINE WIDGET */}
           <div className="mb-6 pb-6 border-b border-gray-200">
-            <div className="flex items-start gap-4">
+            <div className="flex items-start gap-3 sm:gap-4">
               <div
-                className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
+                className={`flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-white font-bold text-sm sm:text-base ${
                   modelCreateResult?.success ? "bg-green-500" : "bg-gray-300"
                 }`}
               >
                 {modelCreateResult?.success ? "✓" : "2"}
               </div>
               <div className="flex-1">
-                <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                <h4 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">
                   Register Your First Model
                 </h4>
-                <p className="text-gray-600 mb-3">
+                <p className="text-sm sm:text-base text-gray-600 mb-3">
                   Create a model to track predictions and detect drift.
                 </p>
 
                 {/* Inline Model Creation Form */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex gap-4 items-start">
-                    <div className="flex-1">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-start">
+                    <div className="flex-1 w-full">
+                      <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                         Model Name
                       </label>
                       <input
@@ -421,7 +421,7 @@ logPrediction();`,
                       <button
                         onClick={handleCreateModel}
                         disabled={creatingModel || !newModelName.trim()}
-                        className={`px-6 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
+                        className={`px-4 sm:px-6 py-2 rounded-lg font-medium transition-colors whitespace-nowrap text-sm sm:text-base ${
                           creatingModel || !newModelName.trim()
                             ? "bg-gray-300 text-gray-500 cursor-not-allowed"
                             : "bg-green-600 text-white hover:bg-green-700"
