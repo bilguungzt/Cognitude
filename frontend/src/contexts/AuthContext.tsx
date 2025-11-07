@@ -42,7 +42,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const isAuthenticated = !!apiKey;
 
   return (
-    <AuthContext.Provider value={{ apiKey, isAuthenticated, isLoading, login, logout }}>
+    <AuthContext.Provider
+      value={{ apiKey, isAuthenticated, isLoading, login, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );
