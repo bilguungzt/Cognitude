@@ -365,9 +365,9 @@ logPrediction();`,
                     <button
                       onClick={() => handleCopy(apiKey, "apiKey")}
                       disabled={!apiKey}
-                      className={`px-4 py-2 text-sm rounded whitespace-nowrap w-full sm:w-auto ${
+                      className={`px-4 py-2 text-sm rounded whitespace-nowrap w-full sm:w-auto shadow-md hover:shadow-lg transition-all ${
                         apiKey
-                          ? "bg-blue-600 text-white hover:bg-blue-700"
+                          ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700"
                           : "bg-gray-300 text-gray-500 cursor-not-allowed"
                       }`}
                     >
@@ -592,10 +592,10 @@ logPrediction();`,
               <button
                 onClick={handleTestPrediction}
                 disabled={loading || !apiKey || !testModelId}
-                className={`px-6 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
+                className={`px-6 py-2 rounded-lg font-medium whitespace-nowrap transition-all shadow-md hover:shadow-lg ${
                   loading || !apiKey || !testModelId
                     ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                    : "bg-blue-600 text-white hover:bg-blue-700"
+                    : "bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700"
                 }`}
               >
                 {loading ? "Sending..." : "Send Test Prediction"}
