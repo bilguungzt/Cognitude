@@ -41,7 +41,8 @@ export default function DocsPage() {
                   🚀 Getting Started
                 </h3>
                 <p className="text-sm text-gray-600 mb-3">
-                  Learn how to authenticate and make your first API call in minutes.
+                  Learn how to authenticate and make your first API call in
+                  minutes.
                 </p>
                 <button
                   onClick={() => navigate("/setup")}
@@ -91,7 +92,10 @@ export default function DocsPage() {
         {/* Embedded ReDoc - Full Width */}
         <div className="flex-1 bg-gray-50 py-8">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden" style={{ height: '800px' }}>
+            <div
+              className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden"
+              style={{ height: "800px" }}
+            >
               <iframe
                 src="https://api.driftassure.com/redoc"
                 className="w-full h-full border-0"
