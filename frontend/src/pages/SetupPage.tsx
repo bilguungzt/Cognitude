@@ -356,8 +356,8 @@ logPrediction();`,
                   Your API key authenticates all requests to DriftAssure.
                 </p>
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 text-sm font-mono text-gray-800">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                    <code className="flex-1 text-sm font-mono text-gray-800 break-all">
                       {apiKey
                         ? "••••••••••••••••••••••••••••••••"
                         : "No API key found. Please log in."}
@@ -365,7 +365,7 @@ logPrediction();`,
                     <button
                       onClick={() => handleCopy(apiKey, "apiKey")}
                       disabled={!apiKey}
-                      className={`px-3 py-1.5 text-sm rounded whitespace-nowrap ${
+                      className={`px-4 py-2 text-sm rounded whitespace-nowrap w-full sm:w-auto ${
                         apiKey
                           ? "bg-blue-600 text-white hover:bg-blue-700"
                           : "bg-gray-300 text-gray-500 cursor-not-allowed"
