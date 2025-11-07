@@ -3,6 +3,7 @@
 ## Overview
 
 DriftGuard includes **bank-level encryption** for all data:
+
 - ✅ **Data at Rest**: AES-256 encryption via PostgreSQL data checksums
 - ✅ **Data in Transit**: TLS 1.3 encryption (production deployment)
 - ✅ **Development**: Simplified setup without SSL certificates
@@ -18,6 +19,7 @@ docker-compose up -d
 ```
 
 **What's Enabled:**
+
 - ✅ Data checksums (`--data-checksums` flag)
 - ✅ Secure password authentication
 - ❌ SSL certificates (not needed for localhost)
@@ -87,13 +89,13 @@ DATABASE_URL=postgresql://user@server:pass@server.postgres.database.azure.com/db
 
 ## Security Features Enabled
 
-| Feature | Status | Implementation |
-|---------|--------|----------------|
-| **TLS 1.3** | ✅ Enabled | PostgreSQL SSL mode |
-| **AES-256** | ✅ Enabled | Data checksums + SSL |
-| **Certificate-based Auth** | ✅ Enabled | SSL certificates |
-| **Connection Encryption** | ✅ Required | `sslmode=require` |
-| **Data-at-Rest Checksums** | ✅ Enabled | `--data-checksums` flag |
+| Feature                    | Status      | Implementation          |
+| -------------------------- | ----------- | ----------------------- |
+| **TLS 1.3**                | ✅ Enabled  | PostgreSQL SSL mode     |
+| **AES-256**                | ✅ Enabled  | Data checksums + SSL    |
+| **Certificate-based Auth** | ✅ Enabled  | SSL certificates        |
+| **Connection Encryption**  | ✅ Required | `sslmode=require`       |
+| **Data-at-Rest Checksums** | ✅ Enabled  | `--data-checksums` flag |
 
 ## Troubleshooting
 
@@ -127,8 +129,9 @@ docker-compose restart db
 ## Marketing Copy (For Sales/Website)
 
 > **Enterprise-Grade Security**
-> 
+>
 > DriftGuard protects your sensitive ML data with bank-level encryption:
+>
 > - 🔐 **TLS 1.3 Encryption** - All data encrypted in transit
 > - 🛡️ **AES-256 Encryption** - Data encrypted at rest with cryptographic checksums
 > - 🔑 **Certificate-Based Authentication** - Industry-standard SSL/TLS security

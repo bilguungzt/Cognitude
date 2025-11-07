@@ -237,11 +237,13 @@ nano .env
 ```
 
 Update:
+
 ```
 VITE_API_URL=http://165.22.158.75:8000
 ```
 
 Build frontend:
+
 ```bash
 npm run build
 ```
@@ -269,7 +271,7 @@ Name: api
 Value: 165.22.158.75
 TTL: 3600
 
-Type: A Record  
+Type: A Record
 Name: app
 Value: 165.22.158.75
 TTL: 3600
@@ -369,12 +371,12 @@ cat backup_20251106.sql | sudo docker-compose -f docker-compose.prod.yml exec -T
 
 ## URLs After Deployment
 
-| Service | URL | Notes |
-|---------|-----|-------|
-| **API Docs** | http://165.22.158.75:8000/docs | Interactive API documentation |
-| **API Endpoint** | http://165.22.158.75:8000 | Base URL for API calls |
-| **Frontend** | Deploy separately | Build and serve via Nginx or Vercel |
-| **Database** | localhost:5432 (internal) | Not exposed externally |
+| Service          | URL                            | Notes                               |
+| ---------------- | ------------------------------ | ----------------------------------- |
+| **API Docs**     | http://165.22.158.75:8000/docs | Interactive API documentation       |
+| **API Endpoint** | http://165.22.158.75:8000      | Base URL for API calls              |
+| **Frontend**     | Deploy separately              | Build and serve via Nginx or Vercel |
+| **Database**     | localhost:5432 (internal)      | Not exposed externally              |
 
 ---
 
@@ -394,6 +396,7 @@ cat backup_20251106.sql | sudo docker-compose -f docker-compose.prod.yml exec -T
 ## Support
 
 If you encounter issues:
+
 1. Check logs: `sudo docker-compose -f docker-compose.prod.yml logs`
 2. Verify services: `sudo docker-compose -f docker-compose.prod.yml ps`
 3. Check firewall: `sudo ufw status`
