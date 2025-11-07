@@ -4,6 +4,8 @@ import { api } from "../services/api";
 import type { MLModel, DriftStatus } from "../types/api";
 import { useNavigate } from "react-router-dom";
 import RegisterModelModal from "../components/RegisterModelModal";
+import Footer from "../components/Footer";
+import { Menu, X } from "lucide-react";
 
 export default function DashboardPage() {
   const [models, setModels] = useState<MLModel[]>([]);
@@ -13,6 +15,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { logout } = useAuth();
   const navigate = useNavigate();
 
@@ -113,7 +116,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
       {/* Header */}
       <header className="glass border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -138,9 +141,14 @@ export default function DashboardPage() {
                 DriftAssure AI
               </h1>
             </div>
-            <div className="flex items-center gap-3">
+
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center gap-3">
               <button onClick={() => navigate("/setup")} className="btn-ghost">
                 📖 Setup Guide
+              </button>
+              <button onClick={() => navigate("/docs")} className="btn-ghost">
+                📚 API Docs
               </button>
               <button onClick={() => navigate("/alerts")} className="btn-ghost">
                 Alert Settings
@@ -149,12 +157,68 @@ export default function DashboardPage() {
                 Logout
               </button>
             </div>
+
+            {/* Mobile Menu Button */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
+            >
+              {mobileMenuOpen ? (
+                <X className="w-6 h-6" />
+              ) : (
+                <Menu className="w-6 h-6" />
+              )}
+            </button>
           </div>
+
+          {/* Mobile Navigation Menu */}
+          {mobileMenuOpen && (
+            <div className="md:hidden mt-4 pt-4 border-t border-gray-200">
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => {
+                    navigate("/setup");
+                    setMobileMenuOpen(false);
+                  }}
+                  className="btn-ghost text-left px-4 py-3"
+                >
+                  📖 Setup Guide
+                </button>
+                <button
+                  onClick={() => {
+                    navigate("/docs");
+                    setMobileMenuOpen(false);
+                  }}
+                  className="btn-ghost text-left px-4 py-3"
+                >
+                  📚 API Docs
+                </button>
+                <button
+                  onClick={() => {
+                    navigate("/alerts");
+                    setMobileMenuOpen(false);
+                  }}
+                  className="btn-ghost text-left px-4 py-3"
+                >
+                  Alert Settings
+                </button>
+                <button
+                  onClick={() => {
+                    handleLogout();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="btn-secondary text-left px-4 py-3"
+                >
+                  Logout
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-32 w-full">
         {/* Action Bar */}
         <div className="mb-6 flex items-center justify-between">
           <div>
@@ -316,6 +380,9 @@ export default function DashboardPage() {
         onClose={() => setShowRegisterModal(false)}
         onSuccess={() => loadModels()}
       />
+
+      {/* Footer */}
+      <Footer />
     </div>
   );
 }

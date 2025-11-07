@@ -7,6 +7,7 @@ import AlertSettingsPage from "./pages/AlertSettingsPage";
 import ModelDetailsPage from "./pages/ModelDetailsPage";
 import ModelDriftPage from "./pages/ModelDriftPage";
 import SetupPage from "./pages/SetupPage";
+import DocsPage from "./pages/DocsPage";
 
 function App() {
   return (
@@ -51,6 +52,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <SetupPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/docs"
+            element={
+              <ProtectedRoute>
+                <DocsPage />
               </ProtectedRoute>
             }
           />
