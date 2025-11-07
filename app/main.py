@@ -65,13 +65,7 @@ curl -H "X-API-Key: your-api-key" https://api.driftassure.com/models/
 # Configure CORS for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",  # Vite dev server
-        "http://localhost:3000",  # Production frontend
-        "http://localhost:8080",  # Alternative frontend port
-        "https://driftassure-frontend-c83ok9o36-bilguungzts-projects.vercel.app",  # Vercel deployment
-        "https://*.vercel.app",  # All Vercel preview deployments
-    ],
+    allow_origins=["*"],  # Allow all origins for simplicity
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
