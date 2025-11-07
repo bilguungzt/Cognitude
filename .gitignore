@@ -43,6 +43,9 @@ htmlcov/
 *.db
 *.sqlite
 
+# PostgreSQL SSL certificates (generated locally)
+postgres-certs/
+
 # Docker
 .docker/
 
