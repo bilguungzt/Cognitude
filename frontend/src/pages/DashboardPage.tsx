@@ -16,6 +16,7 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [lastChecked, setLastChecked] = useState<Date>(new Date());
   const { logout } = useAuth();
   const navigate = useNavigate();
 
@@ -26,8 +27,26 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, []);
 
+  const getRelativeTime = (date: Date): string => {
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diffInSeconds < 10) return "Just now";
+    if (diffInSeconds < 60) return `${diffInSeconds} seconds ago`;
+    
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) return `${diffInMinutes} ${diffInMinutes === 1 ? 'minute' : 'minutes'} ago`;
+    
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours} ${diffInHours === 1 ? 'hour' : 'hours'} ago`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    return `${diffInDays} ${diffInDays === 1 ? 'day' : 'days'} ago`;
+  };
+
   const loadModels = async () => {
     try {
+      setLastChecked(new Date());
       const data = await api.getModels();
       setModels(data);
 
@@ -349,7 +368,7 @@ export default function DashboardPage() {
                         Last Checked
                       </p>
                       <p className="font-semibold text-gray-900 mt-1">
-                        Recently
+                        {getRelativeTime(lastChecked)}
                       </p>
                     </div>
                   </div>
