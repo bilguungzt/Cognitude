@@ -25,7 +25,7 @@ router = APIRouter()
     
     **Example:**
     ```bash
-    curl http://localhost:8000/drift/models/1/drift/current \\
+    curl https://api.driftassure.com/drift/models/1/drift/current \\
       -H "X-API-Key: your-api-key"
     ```
     
@@ -140,7 +140,7 @@ def get_current_drift(
     
     **Example:**
     ```bash
-    curl http://localhost:8000/drift/models/1/history?limit=50&days=14 \\
+    curl https://api.driftassure.com/drift/models/1/history?limit=50&days=14 \\
       -H "X-API-Key: your-api-key"
     ```
     """,
@@ -231,7 +231,7 @@ def get_drift_history(
     
     **Example:**
     ```bash
-    curl http://localhost:8000/drift/alerts?limit=50 \\
+    curl https://api.driftassure.com/drift/alerts?limit=50 \\
       -H "X-API-Key: your-api-key"
     ```
     
@@ -319,7 +319,7 @@ def get_drift_alerts(
     
     **Example:**
     ```bash
-    curl http://localhost:8000/drift/models/1/alerts?limit=20 \\
+    curl https://api.driftassure.com/drift/models/1/alerts?limit=20 \\
       -H "X-API-Key: your-api-key"
     ```
     """,

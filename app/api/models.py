@@ -20,7 +20,7 @@ router = APIRouter()
     
     **Example:**
     ```bash
-    curl -X POST http://localhost:8000/models/ \\
+    curl -X POST https://api.driftassure.com/models/ \\
       -H "X-API-Key: your-api-key" \\
       -H "Content-Type: application/json" \\
       -d '{
@@ -176,7 +176,7 @@ def get_model_by_id(
     
     **Example:**
     ```bash
-    curl -X PUT http://localhost:8000/models/1/features/1 \\
+    curl -X PUT https://api.driftassure.com/models/1/features/1 \\
       -H "X-API-Key: your-api-key" \\
       -H "Content-Type: application/json" \\
       -d '{

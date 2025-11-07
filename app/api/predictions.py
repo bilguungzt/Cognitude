@@ -23,7 +23,7 @@ router = APIRouter()
     
     **Example (Single Prediction):**
     ```bash
-    curl -X POST http://localhost:8000/predictions/models/1/predictions \\
+    curl -X POST https://api.driftassure.com/predictions/models/1/predictions \\
       -H "X-API-Key: your-api-key" \\
       -H "Content-Type: application/json" \\
       -d '[{
@@ -36,7 +36,7 @@ router = APIRouter()
     
     **Example (Batch):**
     ```bash
-    curl -X POST http://localhost:8000/predictions/models/1/predictions \\
+    curl -X POST https://api.driftassure.com/predictions/models/1/predictions \\
       -H "X-API-Key: your-api-key" \\
       -H "Content-Type: application/json" \\
       -d '[

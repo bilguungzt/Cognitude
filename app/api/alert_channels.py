@@ -27,7 +27,7 @@ class AlertChannelCreate(BaseModel):
     
     **Email Example:**
     ```bash
-    curl -X POST http://localhost:8000/alert-channels/ \\
+    curl -X POST https://api.driftassure.com/alert-channels/ \\
       -H "X-API-Key: your-api-key" \\
       -H "Content-Type: application/json" \\
       -d '{
@@ -38,7 +38,7 @@ class AlertChannelCreate(BaseModel):
     
     **Slack Example:**
     ```bash
-    curl -X POST http://localhost:8000/alert-channels/ \\
+    curl -X POST https://api.driftassure.com/alert-channels/ \\
       -H "X-API-Key: your-api-key" \\
       -H "Content-Type: application/json" \\
       -d '{
@@ -209,7 +209,7 @@ def list_alert_channels(
     
     **Example:**
     ```bash
-    curl -X DELETE http://localhost:8000/alert-channels/1 \\
+    curl -X DELETE https://api.driftassure.com/alert-channels/1 \\
       -H "X-API-Key: your-api-key"
     ```
     """,
