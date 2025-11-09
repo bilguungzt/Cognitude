@@ -328,7 +328,9 @@ logPrediction();`,
                 d="M13 10V3L4 14h7v7l9-11h-7z"
               />
             </svg>
-            <h2 className="text-2xl sm:text-3xl font-bold">Get Started in 5 Minutes</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold">
+              Get Started in 5 Minutes
+            </h2>
           </div>
           <p className="text-blue-100 text-base sm:text-lg">
             Log your first prediction and start monitoring for drift. Copy-paste

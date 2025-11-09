@@ -33,15 +33,19 @@ export default function DashboardPage() {
 
     if (diffInSeconds < 10) return "Just now";
     if (diffInSeconds < 60) return `${diffInSeconds} seconds ago`;
-    
+
     const diffInMinutes = Math.floor(diffInSeconds / 60);
-    if (diffInMinutes < 60) return `${diffInMinutes} ${diffInMinutes === 1 ? 'minute' : 'minutes'} ago`;
-    
+    if (diffInMinutes < 60)
+      return `${diffInMinutes} ${
+        diffInMinutes === 1 ? "minute" : "minutes"
+      } ago`;
+
     const diffInHours = Math.floor(diffInMinutes / 60);
-    if (diffInHours < 24) return `${diffInHours} ${diffInHours === 1 ? 'hour' : 'hours'} ago`;
-    
+    if (diffInHours < 24)
+      return `${diffInHours} ${diffInHours === 1 ? "hour" : "hours"} ago`;
+
     const diffInDays = Math.floor(diffInHours / 24);
-    return `${diffInDays} ${diffInDays === 1 ? 'day' : 'days'} ago`;
+    return `${diffInDays} ${diffInDays === 1 ? "day" : "days"} ago`;
   };
 
   const loadModels = async () => {
@@ -241,7 +245,9 @@ export default function DashboardPage() {
         {/* Action Bar */}
         <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">Your ML Models</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
+              Your ML Models
+            </h2>
             <p className="text-sm sm:text-base text-gray-600 mt-2">
               Monitor drift and performance across all registered models
             </p>

@@ -106,3 +106,19 @@ class AlertChannel(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     organization = relationship("Organization", back_populates="alert_channels")
+
+
+class APILog(Base):
+    __tablename__ = "api_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    provider = Column(String, nullable=False)  # e.g., "openai"
+    model = Column(String, nullable=False)  # e.g., "gpt-4"
+    prompt_tokens = Column(Integer, default=0)  # number of prompt tokens used
+    completion_tokens = Column(Integer, default=0)  # number of completion tokens used
+    total_cost = Column(Float, default=0.0)  # cost in USD
+    latency_ms = Column(Float)  # response time in milliseconds
+
+    organization = relationship("Organization")
