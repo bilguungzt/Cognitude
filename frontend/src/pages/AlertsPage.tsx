@@ -134,46 +134,40 @@ export default function AlertsPage() {
   }
 
   return (
-    <Layout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Alert Configuration
-            </h1>
-            <p className="mt-2 text-gray-600 dark:text-gray-400">
-              Configure notification channels and alert thresholds
-            </p>
+    <Layout title="Alert Configuration">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Page Header */}
+        <div className="mb-8">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                Alert Configuration
+              </h2>
+              <p className="text-gray-600">
+                Configure notification channels and alert thresholds
+              </p>
+            </div>
+            <button
+              onClick={() => setIsChannelModalOpen(true)}
+              className="btn-primary flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Add Channel
+            </button>
           </div>
-          <button
-            onClick={() => setIsChannelModalOpen(true)}
-            className="btn-primary flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Add Channel
-          </button>
         </div>
 
         {/* Error State */}
         {error && (
-          <div className="card bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
-              <p className="text-red-900 dark:text-red-300">{error}</p>
-            </div>
+          <div className="alert-error mb-6">
+            <AlertTriangle className="w-5 h-5" />
+            <p>{error}</p>
           </div>
         )}
 
         {/* Alert Status Card */}
         {config && (
-          <div
-            className={`card ${
-              config.enabled
-                ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
-                : "bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
-            }`}
-          >
+          <div className="card mb-8">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div
@@ -184,10 +178,10 @@ export default function AlertsPage() {
                   <Bell className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  <h3 className="text-lg font-semibold text-gray-900">
                     Alerts {config.enabled ? "Enabled" : "Disabled"}
                   </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <p className="text-sm text-gray-600">
                     {config.enabled
                       ? "Notifications are active and will be sent when thresholds are exceeded"
                       : "Notifications are disabled"}
@@ -206,10 +200,10 @@ export default function AlertsPage() {
         )}
 
         {/* Alert Channels */}
-        <div className="card">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
+        <div className="card mb-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-6">
             Notification Channels
-          </h2>
+          </h3>
 
           {channels.length === 0 ? (
             <EmptyState
@@ -226,19 +220,19 @@ export default function AlertsPage() {
               {channels.map((channel) => (
                 <div
                   key={channel.id}
-                  className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:shadow-md transition-all"
+                  className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-all"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                      <div className="p-2 bg-blue-100 rounded-lg">
                         {getChannelIcon(channel.channel_type)}
                       </div>
                       <div>
-                        <h3 className="font-semibold text-gray-900 dark:text-white capitalize">
+                        <h3 className="font-semibold text-gray-900 capitalize">
                           {channel.channel_type}
                         </h3>
                         {channel.enabled ? (
-                          <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                          <span className="text-xs text-green-600 flex items-center gap-1">
                             <CheckCircle className="w-3 h-3" />
                             Active
                           </span>
@@ -257,7 +251,7 @@ export default function AlertsPage() {
                     </button>
                   </div>
 
-                  <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                  <div className="text-sm text-gray-600 space-y-1">
                     {channel.channel_type === "email" &&
                       channel.configuration.email && (
                         <p>Email: {channel.configuration.email}</p>
@@ -282,40 +276,40 @@ export default function AlertsPage() {
 
         {/* Threshold Preview */}
         {config && (
-          <div className="card">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
+          <div className="card mb-8">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">
               Current Thresholds
-            </h2>
+            </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">
                   Daily Cost Threshold
                 </p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                <p className="text-2xl font-bold text-gray-900">
                   ${config.cost_threshold_daily?.toFixed(2) || "—"}
                 </p>
               </div>
-              <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">
                   Monthly Cost Threshold
                 </p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                <p className="text-2xl font-bold text-gray-900">
                   ${config.cost_threshold_monthly?.toFixed(2) || "—"}
                 </p>
               </div>
-              <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">
                   Rate Limit Warning
                 </p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                <p className="text-2xl font-bold text-gray-900">
                   {((config.rate_limit_warning || 0) * 100).toFixed(0)}%
                 </p>
               </div>
-              <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">
                   Cache Hit Rate Warning
                 </p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                <p className="text-2xl font-bold text-gray-900">
                   {((config.cache_hit_rate_warning || 0) * 100).toFixed(0)}%
                 </p>
               </div>
@@ -324,27 +318,27 @@ export default function AlertsPage() {
         )}
 
         {/* Info Card */}
-        <div className="card bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-          <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-300 mb-2">
+        <div className="card">
+          <h3 className="text-lg font-semibold text-blue-900 mb-6">
             Alert Types
           </h3>
-          <ul className="space-y-2 text-sm text-blue-800 dark:text-blue-300">
+          <ul className="space-y-2 text-sm text-blue-800">
             <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400">•</span>
+              <span className="text-blue-600">•</span>
               <span>
                 <strong>Cost Alerts:</strong> Triggered when daily or monthly
                 costs exceed thresholds
               </span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400">•</span>
+              <span className="text-blue-600">•</span>
               <span>
                 <strong>Rate Limit Warnings:</strong> Alert when approaching
                 rate limits (e.g., 80% usage)
               </span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400">•</span>
+              <span className="text-blue-600">•</span>
               <span>
                 <strong>Cache Performance:</strong> Notify when cache hit rate
                 drops below threshold
@@ -366,9 +360,7 @@ export default function AlertsPage() {
         <form onSubmit={handleCreateChannel} className="space-y-4">
           {/* Channel Type */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Channel Type
-            </label>
+            <label className="label">Channel Type</label>
             <select
               value={channelForm.channel_type}
               onChange={(e) => {
@@ -388,9 +380,7 @@ export default function AlertsPage() {
           {/* Email Configuration */}
           {channelForm.channel_type === "email" && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Email Address
-              </label>
+              <label className="label">Email Address</label>
               <input
                 type="email"
                 value={channelForm.configuration.email || ""}
@@ -410,9 +400,7 @@ export default function AlertsPage() {
           {/* Slack Configuration */}
           {channelForm.channel_type === "slack" && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Slack Webhook URL
-              </label>
+              <label className="label">Slack Webhook URL</label>
               <input
                 type="url"
                 value={channelForm.configuration.webhook_url || ""}
@@ -426,7 +414,7 @@ export default function AlertsPage() {
                 className="input"
                 required
               />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-gray-500 mt-1">
                 Get your webhook URL from Slack's Incoming Webhooks app
               </p>
             </div>
@@ -436,9 +424,7 @@ export default function AlertsPage() {
           {channelForm.channel_type === "webhook" && (
             <>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Webhook URL
-                </label>
+                <label className="label">Webhook URL</label>
                 <input
                   type="url"
                   value={channelForm.configuration.url || ""}
@@ -457,9 +443,7 @@ export default function AlertsPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  HTTP Method
-                </label>
+                <label className="label">HTTP Method</label>
                 <select
                   value={channelForm.configuration.method || "POST"}
                   onChange={(e) =>
@@ -481,14 +465,14 @@ export default function AlertsPage() {
           )}
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
             <button
               type="button"
               onClick={() => {
                 setIsChannelModalOpen(false);
                 resetChannelForm();
               }}
-              className="btn-secondary"
+              className="btn-outline"
             >
               Cancel
             </button>
@@ -511,12 +495,12 @@ export default function AlertsPage() {
       >
         <form onSubmit={handleUpdateConfig} className="space-y-4">
           {/* Enable/Disable */}
-          <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label className="block text-sm font-medium text-gray-700">
                 Enable Alerts
               </label>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-xs text-gray-500 mt-1">
                 Turn on/off all alert notifications
               </p>
             </div>
@@ -529,15 +513,13 @@ export default function AlertsPage() {
                 }
                 className="sr-only peer"
               />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
             </label>
           </div>
 
           {/* Daily Cost Threshold */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Daily Cost Threshold ($)
-            </label>
+            <label className="label">Daily Cost Threshold ($)</label>
             <input
               type="number"
               step="0.01"
@@ -551,16 +533,14 @@ export default function AlertsPage() {
               placeholder="100.00"
               className="input"
             />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <p className="text-sm text-gray-500 mt-1">
               Alert when daily cost exceeds this amount
             </p>
           </div>
 
           {/* Monthly Cost Threshold */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Monthly Cost Threshold ($)
-            </label>
+            <label className="label">Monthly Cost Threshold ($)</label>
             <input
               type="number"
               step="0.01"
@@ -574,16 +554,14 @@ export default function AlertsPage() {
               placeholder="2000.00"
               className="input"
             />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <p className="text-sm text-gray-500 mt-1">
               Alert when monthly cost exceeds this amount
             </p>
           </div>
 
           {/* Rate Limit Warning */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Rate Limit Warning (%)
-            </label>
+            <label className="label">Rate Limit Warning (%)</label>
             <input
               type="number"
               step="0.01"
@@ -599,16 +577,14 @@ export default function AlertsPage() {
               placeholder="0.80"
               className="input"
             />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <p className="text-sm text-gray-500 mt-1">
               Alert at this % of rate limit (0.8 = 80%)
             </p>
           </div>
 
           {/* Cache Hit Rate Warning */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Cache Hit Rate Warning (%)
-            </label>
+            <label className="label">Cache Hit Rate Warning (%)</label>
             <input
               type="number"
               step="0.01"
@@ -624,17 +600,17 @@ export default function AlertsPage() {
               placeholder="0.30"
               className="input"
             />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <p className="text-sm text-gray-500 mt-1">
               Alert when cache hit rate drops below this (0.3 = 30%)
             </p>
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
             <button
               type="button"
               onClick={() => setIsConfigModalOpen(false)}
-              className="btn-secondary"
+              className="btn-outline"
             >
               Cancel
             </button>

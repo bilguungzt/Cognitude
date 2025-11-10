@@ -113,14 +113,14 @@ export default function RateLimitsPage() {
   );
 
   return (
-    <Layout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+    <Layout title="Rate Limits">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Page Header */}
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">
             Rate Limits
-          </h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
+          </h2>
+          <p className="text-gray-600">
             Configure API rate limits to protect your infrastructure and control
             costs
           </p>
@@ -128,35 +128,23 @@ export default function RateLimitsPage() {
 
         {/* Success Message */}
         {successMessage && (
-          <div className="card bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-            <div className="flex items-center gap-3">
-              <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
-              <p className="text-green-900 dark:text-green-300">
-                {successMessage}
-              </p>
-            </div>
+          <div className="alert-success mb-6">
+            <CheckCircle className="w-5 h-5" />
+            <p>{successMessage}</p>
           </div>
         )}
 
         {/* Error Message */}
         {error && (
-          <div className="card bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
-              <p className="text-red-900 dark:text-red-300">{error}</p>
-            </div>
+          <div className="alert-error mb-6">
+            <AlertTriangle className="w-5 h-5" />
+            <p>{error}</p>
           </div>
         )}
 
         {/* Status Card */}
         {config && (
-          <div
-            className={`card ${
-              config.enabled
-                ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
-                : "bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
-            }`}
-          >
+          <div className="card mb-8">
             <div className="flex items-center gap-3">
               <div
                 className={`p-3 rounded-lg ${
@@ -166,10 +154,10 @@ export default function RateLimitsPage() {
                 <Shield className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                <h3 className="text-lg font-semibold text-gray-900">
                   Rate Limiting {config.enabled ? "Enabled" : "Disabled"}
                 </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-gray-600">
                   {config.enabled
                     ? "Your API is protected by rate limits"
                     : "Rate limiting is currently disabled"}
@@ -180,12 +168,12 @@ export default function RateLimitsPage() {
         )}
 
         {/* Current Usage */}
-        <div className="card">
+        <div className="card mb-8">
           <div className="flex items-center gap-2 mb-6">
-            <Activity className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            <Activity className="w-5 h-5 text-blue-600" />
+            <h3 className="text-lg font-semibold text-gray-900">
               Current Usage
-            </h2>
+            </h3>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -194,7 +182,7 @@ export default function RateLimitsPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <span className="text-sm font-medium text-gray-700">
                     Per Minute
                   </span>
                 </div>
@@ -206,7 +194,7 @@ export default function RateLimitsPage() {
                   {minutePercentage.toFixed(1)}%
                 </span>
               </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+              <div className="w-full bg-gray-200 rounded-full h-3">
                 <div
                   className={`h-3 rounded-full transition-all duration-500 ${getProgressColor(
                     minutePercentage
@@ -214,7 +202,7 @@ export default function RateLimitsPage() {
                   style={{ width: `${Math.min(minutePercentage, 100)}%` }}
                 />
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-sm text-gray-600">
                 {currentUsage.minute.toLocaleString()} /{" "}
                 {formData.requests_per_minute?.toLocaleString() || 0} requests
               </p>
@@ -225,7 +213,7 @@ export default function RateLimitsPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <span className="text-sm font-medium text-gray-700">
                     Per Hour
                   </span>
                 </div>
@@ -237,7 +225,7 @@ export default function RateLimitsPage() {
                   {hourPercentage.toFixed(1)}%
                 </span>
               </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+              <div className="w-full bg-gray-200 rounded-full h-3">
                 <div
                   className={`h-3 rounded-full transition-all duration-500 ${getProgressColor(
                     hourPercentage
@@ -245,7 +233,7 @@ export default function RateLimitsPage() {
                   style={{ width: `${Math.min(hourPercentage, 100)}%` }}
                 />
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-sm text-gray-600">
                 {currentUsage.hour.toLocaleString()} /{" "}
                 {formData.requests_per_hour?.toLocaleString() || 0} requests
               </p>
@@ -256,7 +244,7 @@ export default function RateLimitsPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <span className="text-sm font-medium text-gray-700">
                     Per Day
                   </span>
                 </div>
@@ -268,7 +256,7 @@ export default function RateLimitsPage() {
                   {dayPercentage.toFixed(1)}%
                 </span>
               </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+              <div className="w-full bg-gray-200 rounded-full h-3">
                 <div
                   className={`h-3 rounded-full transition-all duration-500 ${getProgressColor(
                     dayPercentage
@@ -276,7 +264,7 @@ export default function RateLimitsPage() {
                   style={{ width: `${Math.min(dayPercentage, 100)}%` }}
                 />
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-sm text-gray-600">
                 {currentUsage.day.toLocaleString()} /{" "}
                 {formData.requests_per_day?.toLocaleString() || 0} requests
               </p>
@@ -287,37 +275,33 @@ export default function RateLimitsPage() {
           {(minutePercentage >= 75 ||
             hourPercentage >= 75 ||
             dayPercentage >= 75) && (
-            <div className="mt-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5" />
-                <div>
-                  <h4 className="font-semibold text-yellow-900 dark:text-yellow-300">
-                    Approaching Rate Limit
-                  </h4>
-                  <p className="text-sm text-yellow-800 dark:text-yellow-400 mt-1">
-                    You are approaching one or more rate limits. Consider
-                    increasing the limits or optimizing your API usage.
-                  </p>
-                </div>
+            <div className="alert-warning mt-6">
+              <AlertTriangle className="w-5 h-5" />
+              <div>
+                <h4 className="font-semibold">Approaching Rate Limit</h4>
+                <p className="text-sm mt-1">
+                  You are approaching one or more rate limits. Consider
+                  increasing the limits or optimizing your API usage.
+                </p>
               </div>
             </div>
           )}
         </div>
 
         {/* Configuration Form */}
-        <div className="card">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
+        <div className="card mb-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-6">
             Rate Limit Configuration
-          </h2>
+          </h3>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Enable/Disable */}
-            <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label className="block text-sm font-medium text-gray-700">
                   Enable Rate Limiting
                 </label>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <p className="text-xs text-gray-500 mt-1">
                   Turn on/off API rate limiting for your organization
                 </p>
               </div>
@@ -330,13 +314,13 @@ export default function RateLimitsPage() {
                   }
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
               </label>
             </div>
 
             {/* Requests Per Minute */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="label">
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4" />
                   Requests Per Minute
@@ -356,14 +340,14 @@ export default function RateLimitsPage() {
                 className="input"
                 disabled={!formData.enabled}
               />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-gray-500 mt-1">
                 Maximum requests allowed per minute
               </p>
             </div>
 
             {/* Requests Per Hour */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="label">
                 <div className="flex items-center gap-2">
                   <TrendingUp className="w-4 h-4" />
                   Requests Per Hour
@@ -383,14 +367,14 @@ export default function RateLimitsPage() {
                 className="input"
                 disabled={!formData.enabled}
               />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-gray-500 mt-1">
                 Maximum requests allowed per hour
               </p>
             </div>
 
             {/* Requests Per Day */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="label">
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
                   Requests Per Day
@@ -410,13 +394,13 @@ export default function RateLimitsPage() {
                 className="input"
                 disabled={!formData.enabled}
               />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-gray-500 mt-1">
                 Maximum requests allowed per day
               </p>
             </div>
 
             {/* Actions */}
-            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
               <button
                 type="button"
                 onClick={() => {
@@ -424,7 +408,7 @@ export default function RateLimitsPage() {
                     setFormData(config);
                   }
                 }}
-                className="btn-secondary"
+                className="btn-outline"
                 disabled={saving}
               >
                 Reset
@@ -451,34 +435,34 @@ export default function RateLimitsPage() {
         </div>
 
         {/* Info Card */}
-        <div className="card bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-          <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-300 mb-2">
+        <div className="card mb-8">
+          <h3 className="text-lg font-semibold text-blue-900 mb-2">
             How Rate Limiting Works
           </h3>
-          <ul className="space-y-2 text-sm text-blue-800 dark:text-blue-300">
+          <ul className="space-y-2 text-sm text-blue-800">
             <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400">•</span>
+              <span className="text-blue-600">•</span>
               <span>
                 <strong>Organization-level:</strong> Limits apply per
                 organization, not per user
               </span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400">•</span>
+              <span className="text-blue-600">•</span>
               <span>
                 <strong>Sliding window:</strong> Limits reset on a rolling basis
                 (not at fixed intervals)
               </span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400">•</span>
+              <span className="text-blue-600">•</span>
               <span>
                 <strong>429 responses:</strong> Requests exceeding limits
                 receive HTTP 429 (Too Many Requests)
               </span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400">•</span>
+              <span className="text-blue-600">•</span>
               <span>
                 <strong>Headers:</strong> Rate limit info is included in
                 response headers (X-RateLimit-*)
@@ -488,32 +472,32 @@ export default function RateLimitsPage() {
         </div>
 
         {/* Recommended Limits Card */}
-        <div className="card bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
-          <h3 className="text-lg font-semibold text-purple-900 dark:text-purple-300 mb-2">
+        <div className="card">
+          <h3 className="text-lg font-semibold text-purple-900 mb-6">
             Recommended Starting Points
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-            <div className="p-3 bg-white dark:bg-purple-900/30 rounded-lg">
-              <p className="text-sm text-purple-700 dark:text-purple-400 font-medium mb-1">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <p className="text-sm text-purple-700 font-medium mb-1">
                 Small Team
               </p>
-              <p className="text-xs text-purple-600 dark:text-purple-500">
+              <p className="text-xs text-purple-600">
                 60/min • 1,000/hr • 10,000/day
               </p>
             </div>
-            <div className="p-3 bg-white dark:bg-purple-900/30 rounded-lg">
-              <p className="text-sm text-purple-700 dark:text-purple-400 font-medium mb-1">
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <p className="text-sm text-purple-700 font-medium mb-1">
                 Medium Team
               </p>
-              <p className="text-xs text-purple-600 dark:text-purple-500">
+              <p className="text-xs text-purple-600">
                 300/min • 10,000/hr • 100,000/day
               </p>
             </div>
-            <div className="p-3 bg-white dark:bg-purple-900/30 rounded-lg">
-              <p className="text-sm text-purple-700 dark:text-purple-400 font-medium mb-1">
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <p className="text-sm text-purple-700 font-medium mb-1">
                 Enterprise
               </p>
-              <p className="text-xs text-purple-600 dark:text-purple-500">
+              <p className="text-xs text-purple-600">
                 1,000/min • 50,000/hr • 500,000/day
               </p>
             </div>

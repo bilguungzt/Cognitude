@@ -163,34 +163,34 @@ export default function ProvidersPage() {
   }
 
   return (
-    <Layout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              LLM Providers
-            </h1>
-            <p className="mt-2 text-gray-600 dark:text-gray-400">
-              Configure your LLM provider API keys and routing priorities
-            </p>
+    <Layout title="LLM Providers">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Page Header */}
+        <div className="mb-8">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                LLM Providers
+              </h2>
+              <p className="text-gray-600">
+                Configure your LLM provider API keys and routing priorities
+              </p>
+            </div>
+            <button
+              onClick={() => handleOpenModal()}
+              className="btn-primary flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Add Provider
+            </button>
           </div>
-          <button
-            onClick={() => handleOpenModal()}
-            className="btn-primary flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Add Provider
-          </button>
         </div>
 
         {/* Error State */}
         {error && (
-          <div className="card bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
-              <p className="text-red-900 dark:text-red-300">{error}</p>
-            </div>
+          <div className="alert-error mb-6">
+            <AlertTriangle className="w-5 h-5" />
+            <p>{error}</p>
           </div>
         )}
 
@@ -206,12 +206,12 @@ export default function ProvidersPage() {
             }}
           />
         ) : (
-          /* Providers List */
-          <div className="grid grid-cols-1 gap-4">
+          /* Providers List */ 
+          <div className="space-y-4 mb-8">
             {providers.map((provider) => (
               <div
                 key={provider.id}
-                className="card hover:shadow-md transition-all duration-200"
+                className="card p-6"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-4 flex-1">
@@ -229,15 +229,15 @@ export default function ProvidersPage() {
                     {/* Provider Info */}
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-xl font-semibold text-gray-900 dark:text-white capitalize">
+                        <h3 className="text-xl font-semibold text-gray-900 capitalize">
                           {provider.provider}
                         </h3>
                         {provider.enabled ? (
-                          <span className="px-2 py-1 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full">
+                          <span className="badge-success">
                             Active
                           </span>
                         ) : (
-                          <span className="px-2 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 rounded-full">
+                          <span className="badge-neutral">
                             Inactive
                           </span>
                         )}
@@ -246,17 +246,17 @@ export default function ProvidersPage() {
                       <div className="space-y-2">
                         {/* API Key */}
                         <div className="flex items-center gap-2">
-                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                          <span className="text-sm text-gray-600">
                             API Key:
                           </span>
-                          <code className="text-sm font-mono bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
+                          <code className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">
                             {showApiKey[provider.id]
                               ? provider.api_key
                               : maskApiKey(provider.api_key)}
                           </code>
                           <button
                             onClick={() => toggleApiKeyVisibility(provider.id)}
-                            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                            className="text-gray-500 hover:text-gray-700"
                           >
                             {showApiKey[provider.id] ? (
                               <EyeOff className="w-4 h-4" />
@@ -268,10 +268,10 @@ export default function ProvidersPage() {
 
                         {/* Priority */}
                         <div className="flex items-center gap-2">
-                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                          <span className="text-sm text-gray-600">
                             Priority:
                           </span>
-                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                          <span className="text-sm font-medium text-gray-900">
                             {provider.priority}{" "}
                             {provider.priority === 1 && "(Primary)"}
                           </span>
@@ -279,10 +279,10 @@ export default function ProvidersPage() {
 
                         {/* Created Date */}
                         <div className="flex items-center gap-2">
-                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                          <span className="text-sm text-gray-600">
                             Added:
                           </span>
-                          <span className="text-sm text-gray-900 dark:text-white">
+                          <span className="text-sm text-gray-900">
                             {new Date(provider.created_at).toLocaleDateString()}
                           </span>
                         </div>
@@ -294,14 +294,14 @@ export default function ProvidersPage() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleOpenModal(provider)}
-                      className="p-2 text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors"
+                      className="p-2 text-gray-600 hover:text-blue-600 transition-colors"
                       title="Edit provider"
                     >
                       <Edit2 className="w-5 h-5" />
                     </button>
                     <button
                       onClick={() => handleDelete(provider)}
-                      className="p-2 text-gray-600 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-colors"
+                      className="p-2 text-gray-600 hover:text-red-600 transition-colors"
                       title="Delete provider"
                     >
                       <Trash2 className="w-5 h-5" />
@@ -314,30 +314,30 @@ export default function ProvidersPage() {
         )}
 
         {/* Info Card */}
-        <div className="card bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-          <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-300 mb-2">
+        <div className="card">
+          <h3 className="text-lg font-semibold text-blue-900 mb-6">
             How Provider Priority Works
           </h3>
-          <ul className="space-y-2 text-sm text-blue-800 dark:text-blue-300">
+          <ul className="space-y-2 text-sm text-blue-800">
             <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400">•</span>
+              <span className="text-blue-600">•</span>
               <span>
                 Lower priority numbers are tried first (1 is highest priority)
               </span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400">•</span>
+              <span className="text-blue-600">•</span>
               <span>
                 If a provider fails, the next priority provider is automatically
                 used
               </span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400">•</span>
+              <span className="text-blue-600">•</span>
               <span>Disabled providers are skipped in the routing logic</span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400">•</span>
+              <span className="text-blue-600">•</span>
               <span>
                 Smart routing automatically selects the best model across all
                 enabled providers
@@ -356,9 +356,7 @@ export default function ProvidersPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Provider Type */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Provider
-            </label>
+            <label className="label">Provider</label>
             <select
               value={formData.provider}
               onChange={(e) =>
@@ -377,7 +375,7 @@ export default function ProvidersPage() {
               ))}
             </select>
             {editingProvider && (
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-gray-500 mt-1">
                 Provider type cannot be changed after creation
               </p>
             )}
@@ -386,9 +384,7 @@ export default function ProvidersPage() {
           {/* API Key */}
           {!editingProvider && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                API Key
-              </label>
+              <label className="label">API Key</label>
               <input
                 type="password"
                 value={formData.api_key}
@@ -399,7 +395,7 @@ export default function ProvidersPage() {
                 className="input"
                 required
               />
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-gray-500 mt-1">
                 Your API key is encrypted and stored securely
               </p>
             </div>
@@ -407,9 +403,7 @@ export default function ProvidersPage() {
 
           {/* Priority */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Priority
-            </label>
+            <label className="label">Priority</label>
             <input
               type="number"
               value={formData.priority}
@@ -420,18 +414,18 @@ export default function ProvidersPage() {
               className="input"
               required
             />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <p className="text-sm text-gray-500 mt-1">
               Lower numbers = higher priority (1 is highest)
             </p>
           </div>
 
           {/* Enabled Toggle */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label className="block text-sm font-medium text-gray-700">
                 Status
               </label>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-xs text-gray-500">
                 Enable or disable this provider
               </p>
             </div>
@@ -444,16 +438,16 @@ export default function ProvidersPage() {
                 }
                 className="sr-only peer"
               />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
             </label>
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
             <button
               type="button"
               onClick={handleCloseModal}
-              className="btn-secondary"
+              className="btn-outline"
             >
               Cancel
             </button>

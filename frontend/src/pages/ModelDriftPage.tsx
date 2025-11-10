@@ -110,13 +110,10 @@ export default function ModelDriftPage() {
       <header className="glass border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate("/dashboard")}
-                className="text-gray-600 hover:text-gray-900 transition-colors"
-              >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center shadow-md">
                 <svg
-                  className="w-6 h-6"
+                  className="w-6 h-6 text-white"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -125,38 +122,56 @@ export default function ModelDriftPage() {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M15 19l-7-7 7-7"
+                    d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
                   />
                 </svg>
-              </button>
+              </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">
+                <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                   {model.name}
                 </h1>
                 <p className="text-gray-600 text-sm">Version {model.version}</p>
               </div>
             </div>
-            <button onClick={handleLogout} className="btn-secondary">
-              Logout
-            </button>
+
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center gap-3">
+              <button
+                onClick={() => navigate("/dashboard")}
+                className="btn-ghost"
+              >
+                Dashboard
+              </button>
+              <button onClick={handleLogout} className="btn-secondary">
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Page Header */}
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">
+            {model.name}
+          </h2>
+          <p className="text-gray-600">Version {model.version}</p>
+        </div>
+
         {/* Error Message */}
         {error && (
           <div className="alert-error mb-6">
-            <p className="text-sm">{error}</p>
+            <p>{error}</p>
           </div>
         )}
 
         {/* Current Drift Status */}
-        <div className="card p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+        <div className="card mb-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-6">
             Current Drift Status
-          </h2>
+          </h3>
 
           {currentDrift?.message ? (
             <div className="text-center py-8">
@@ -165,7 +180,7 @@ export default function ModelDriftPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                <p className="text-sm font-medium text-gray-600 mb-1">
                   Status
                 </p>
                 {currentDrift?.drift_detected ? (
@@ -175,7 +190,7 @@ export default function ModelDriftPage() {
                 )}
               </div>
               <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                <p className="text-sm font-medium text-gray-600 mb-1">
                   Drift Score
                 </p>
                 <p className="text-2xl font-bold text-gray-900">
@@ -183,7 +198,7 @@ export default function ModelDriftPage() {
                 </p>
               </div>
               <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                <p className="text-sm font-medium text-gray-600 mb-1">
                   P-Value
                 </p>
                 <p className="text-2xl font-bold text-gray-900">
@@ -191,7 +206,7 @@ export default function ModelDriftPage() {
                 </p>
               </div>
               <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+                <p className="text-sm font-medium text-gray-600 mb-1">
                   Samples
                 </p>
                 <p className="text-2xl font-bold text-gray-900">
@@ -203,10 +218,10 @@ export default function ModelDriftPage() {
         </div>
 
         {/* Drift History Chart */}
-        <div className="card p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">
+        <div className="card mb-8">
+          <h3 className="text-lg font-semibold text-gray-900 mb-6">
             Drift Score Over Time
-          </h2>
+          </h3>
 
           {driftHistory.length === 0 ? (
             <div className="text-center py-12">
@@ -266,10 +281,10 @@ export default function ModelDriftPage() {
 
         {/* P-Value Chart */}
         {driftHistory.length > 0 && (
-          <div className="card p-6 mb-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-6">
+          <div className="card mb-8">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">
               P-Value Over Time
-            </h2>
+            </h3>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={formatChartData(driftHistory)}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -324,10 +339,10 @@ export default function ModelDriftPage() {
 
         {/* Drift History Table */}
         {driftHistory.length > 0 && (
-          <div className="card p-6 mb-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          <div className="card mb-8">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">
               Drift Detection History
-            </h2>
+            </h3>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -380,10 +395,10 @@ export default function ModelDriftPage() {
         )}
 
         {/* Model Features */}
-        <div className="card p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+        <div className="card">
+          <h3 className="text-lg font-semibold text-gray-900 mb-6">
             Model Features
-          </h2>
+          </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {model.features.map((feature) => (

@@ -102,118 +102,122 @@ export default function CachePage() {
   const cacheHitRate = cacheStats.redis.hit_rate * 100;
 
   return (
-    <Layout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Cache Management
-            </h1>
-            <p className="mt-2 text-gray-600 dark:text-gray-400">
-              Monitor cache performance and manage cached responses
-            </p>
+    <Layout title="Cache Management">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Page Header */}
+        <div className="mb-8">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                Cache Management
+              </h2>
+              <p className="text-gray-600">
+                Monitor cache performance and manage cached responses
+              </p>
+            </div>
+            <button
+              onClick={loadCacheStats}
+              className="btn-secondary flex items-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Refresh
+            </button>
           </div>
-          <button
-            onClick={loadCacheStats}
-            className="btn-secondary flex items-center gap-2"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Refresh
-          </button>
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {/* Hit Rate */}
-          <div className="card group hover:shadow-lg transition-all duration-200">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg group-hover:scale-110 transition-transform">
-                <Zap className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+          <div className="card p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">
+                  Hit Rate
+                </p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">
+                  {cacheHitRate.toFixed(1)}%
+                </p>
               </div>
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                Redis
-              </span>
+              <div className="p-3 bg-purple-100 rounded-full">
+                <Zap className="w-6 h-6 text-purple-600" />
+              </div>
             </div>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {cacheHitRate.toFixed(1)}%
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              Hit Rate
-            </p>
-            <div className="mt-3 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-              <div
-                className="bg-purple-600 h-2 rounded-full transition-all duration-500"
-                style={{ width: `${cacheHitRate}%` }}
-              />
+            <div className="mt-4">
+              <p className="text-xs text-gray-500">Redis</p>
             </div>
           </div>
 
           {/* Total Cached */}
-          <div className="card group hover:shadow-lg transition-all duration-200">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg group-hover:scale-110 transition-transform">
-                <Database className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+          <div className="card p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">
+                  Cached Responses
+                </p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">
+                  {cacheStats.postgresql.total_cached_responses.toLocaleString()}
+                </p>
               </div>
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                PostgreSQL
-              </span>
+              <div className="p-3 bg-blue-100 rounded-full">
+                <Database className="w-6 h-6 text-blue-600" />
+              </div>
             </div>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {cacheStats.postgresql.total_cached_responses.toLocaleString()}
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              Cached Responses
-            </p>
+            <div className="mt-4">
+              <p className="text-xs text-gray-500">PostgreSQL</p>
+            </div>
           </div>
 
           {/* Memory Usage */}
-          <div className="card group hover:shadow-lg transition-all duration-200">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-lg group-hover:scale-110 transition-transform">
-                <HardDrive className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+          <div className="card p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">
+                  Memory Usage
+                </p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">
+                  {cacheStats.redis.memory_usage_mb.toFixed(1)} MB
+                </p>
               </div>
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                Memory
-              </span>
+              <div className="p-3 bg-orange-100 rounded-full">
+                <HardDrive className="w-6 h-6 text-orange-600" />
+              </div>
             </div>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {cacheStats.redis.memory_usage_mb.toFixed(1)} MB
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              Redis Usage
-            </p>
+            <div className="mt-4">
+              <p className="text-xs text-gray-500">Memory</p>
+            </div>
           </div>
 
           {/* Cost Savings */}
-          <div className="card group hover:shadow-lg transition-all duration-200">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg group-hover:scale-110 transition-transform">
-                <DollarSign className="w-6 h-6 text-green-600 dark:text-green-400" />
+          <div className="card p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">
+                  Total Saved
+                </p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">
+                  ${cacheStats.lifetime_savings.total_cost_saved.toFixed(2)}
+                </p>
               </div>
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                Lifetime
-              </span>
+              <div className="p-3 bg-green-100 rounded-full">
+                <DollarSign className="w-6 h-6 text-green-600" />
+              </div>
             </div>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-              ${cacheStats.lifetime_savings.total_cost_saved.toFixed(2)}
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              Total Saved
-            </p>
+            <div className="mt-4">
+              <p className="text-xs text-gray-500">Lifetime</p>
+            </div>
           </div>
         </div>
 
         {/* Cache Details Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Redis Cache */}
-          <div className="card">
+          <div className="card p-6">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                <h3 className="text-lg font-semibold text-gray-900">
                   Redis Cache
-                </h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
                   Fast in-memory cache (1 hour TTL)
                 </p>
               </div>
@@ -227,38 +231,38 @@ export default function CachePage() {
             </div>
 
             <div className="space-y-4">
-              <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <span className="text-gray-700 dark:text-gray-300">
+              <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
+                <span className="text-gray-700">
                   Cache Hits
                 </span>
-                <span className="text-lg font-bold text-green-600 dark:text-green-400">
+                <span className="text-lg font-bold text-green-600">
                   {cacheStats.redis.hits.toLocaleString()}
                 </span>
               </div>
 
-              <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <span className="text-gray-700 dark:text-gray-300">
+              <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
+                <span className="text-gray-700">
                   Cache Misses
                 </span>
-                <span className="text-lg font-bold text-gray-900 dark:text-white">
+                <span className="text-lg font-bold text-gray-900">
                   {cacheStats.redis.misses.toLocaleString()}
                 </span>
               </div>
 
-              <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <span className="text-gray-700 dark:text-gray-300">
+              <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
+                <span className="text-gray-700">
                   Total Keys
                 </span>
-                <span className="text-lg font-bold text-gray-900 dark:text-white">
+                <span className="text-lg font-bold text-gray-900">
                   {cacheStats.redis.total_keys.toLocaleString()}
                 </span>
               </div>
 
-              <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <span className="text-gray-700 dark:text-gray-300">
+              <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
+                <span className="text-gray-700">
                   Hit Rate
                 </span>
-                <span className="text-lg font-bold text-purple-600 dark:text-purple-400">
+                <span className="text-lg font-bold text-purple-600">
                   {cacheHitRate.toFixed(1)}%
                 </span>
               </div>
@@ -266,13 +270,13 @@ export default function CachePage() {
           </div>
 
           {/* PostgreSQL Cache */}
-          <div className="card">
+          <div className="card p-6">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                <h3 className="text-lg font-semibold text-gray-900">
                   PostgreSQL Cache
-                </h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
                   Persistent long-term cache
                 </p>
               </div>
@@ -286,29 +290,29 @@ export default function CachePage() {
             </div>
 
             <div className="space-y-4">
-              <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <span className="text-gray-700 dark:text-gray-300">
+              <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
+                <span className="text-gray-700">
                   Cached Responses
                 </span>
-                <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                <span className="text-lg font-bold text-blue-600">
                   {cacheStats.postgresql.total_cached_responses.toLocaleString()}
                 </span>
               </div>
 
-              <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <span className="text-gray-700 dark:text-gray-300">
+              <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
+                <span className="text-gray-700">
                   Cost Savings
                 </span>
-                <span className="text-lg font-bold text-green-600 dark:text-green-400">
+                <span className="text-lg font-bold text-green-600">
                   ${cacheStats.postgresql.cost_savings.toFixed(2)}
                 </span>
               </div>
 
-              <div className="flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <span className="text-gray-700 dark:text-gray-300">
+              <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
+                <span className="text-gray-700">
                   Oldest Entry
                 </span>
-                <span className="text-lg font-bold text-gray-900 dark:text-white">
+                <span className="text-lg font-bold text-gray-900">
                   {new Date(
                     cacheStats.postgresql.oldest_cache_entry
                   ).toLocaleDateString()}
@@ -319,29 +323,29 @@ export default function CachePage() {
         </div>
 
         {/* Lifetime Impact */}
-        <div className="card bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-2 border-green-200 dark:border-green-800">
+        <div className="card bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 mb-8">
           <div className="flex items-start gap-4">
             <div className="p-3 bg-green-600 rounded-lg">
               <TrendingUp className="w-6 h-6 text-white" />
             </div>
             <div className="flex-1">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
                 Lifetime Cache Impact
-              </h2>
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <p className="text-sm text-gray-600">
                     Requests Served from Cache
                   </p>
-                  <p className="text-3xl font-bold text-green-600 dark:text-green-400 mt-1">
+                  <p className="text-3xl font-bold text-green-600 mt-1">
                     {cacheStats.lifetime_savings.requests_served_from_cache.toLocaleString()}
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <p className="text-sm text-gray-600">
                     Total Cost Saved
                   </p>
-                  <p className="text-3xl font-bold text-green-600 dark:text-green-400 mt-1">
+                  <p className="text-3xl font-bold text-green-600 mt-1">
                     ${cacheStats.lifetime_savings.total_cost_saved.toFixed(2)}
                   </p>
                 </div>
@@ -351,13 +355,13 @@ export default function CachePage() {
         </div>
 
         {/* Clear All Button */}
-        <div className="card bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+        <div className="card mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-red-900 dark:text-red-300">
+              <h3 className="text-lg font-semibold text-red-900">
                 Clear All Cache
               </h3>
-              <p className="text-sm text-red-700 dark:text-red-400 mt-1">
+              <p className="text-sm text-red-700 mt-1">
                 Remove all cached responses from both Redis and PostgreSQL. This
                 action cannot be undone.
               </p>
@@ -373,34 +377,34 @@ export default function CachePage() {
         </div>
 
         {/* Info Card */}
-        <div className="card bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-          <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-300 mb-2">
+        <div className="card">
+          <h3 className="text-lg font-semibold text-blue-900 mb-6">
             How Caching Works
           </h3>
-          <ul className="space-y-2 text-sm text-blue-800 dark:text-blue-300">
+          <ul className="space-y-2 text-sm text-blue-800">
             <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400">•</span>
+              <span className="text-blue-600">•</span>
               <span>
                 <strong>Redis:</strong> Fast in-memory cache with 1 hour TTL for
                 instant responses
               </span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400">•</span>
+              <span className="text-blue-600">•</span>
               <span>
                 <strong>PostgreSQL:</strong> Persistent storage for long-term
                 analytics and cost tracking
               </span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400">•</span>
+              <span className="text-blue-600">•</span>
               <span>
                 Identical requests (same model + messages) return cached
                 responses instantly
               </span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400">•</span>
+              <span className="text-blue-600">•</span>
               <span>Cached responses cost $0 and have ~0ms latency</span>
             </li>
           </ul>
@@ -414,14 +418,14 @@ export default function CachePage() {
         title="Confirm Cache Clear"
       >
         <div className="space-y-4">
-          <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" />
+          <div className="alert-error">
+            <AlertTriangle className="w-5 h-5" />
             <div>
-              <p className="font-semibold text-red-900 dark:text-red-300">
+              <p className="font-semibold">
                 Are you sure you want to clear the{" "}
                 {clearType === "all" ? "entire" : clearType} cache?
               </p>
-              <p className="text-sm text-red-700 dark:text-red-400 mt-1">
+              <p className="text-sm mt-1">
                 This will remove all cached responses and cannot be undone.
                 Future requests will need to contact the LLM providers directly
                 until the cache rebuilds.
@@ -429,10 +433,10 @@ export default function CachePage() {
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
             <button
               onClick={() => setIsConfirmModalOpen(false)}
-              className="btn-secondary"
+              className="btn-outline"
               disabled={clearing}
             >
               Cancel

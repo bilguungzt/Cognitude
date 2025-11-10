@@ -123,13 +123,10 @@ export default function AlertSettingsPage() {
       <header className="glass border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate("/dashboard")}
-                className="text-gray-600 hover:text-gray-900 transition-colors"
-              >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center shadow-md">
                 <svg
-                  className="w-6 h-6"
+                  className="w-6 h-6 text-white"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -138,42 +135,39 @@ export default function AlertSettingsPage() {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M15 19l-7-7 7-7"
+                    d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
                   />
                 </svg>
-              </button>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center shadow-md">
-                  <svg
-                    className="w-6 h-6 text-white"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                    />
-                  </svg>
-                </div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                  Alert Settings
-                </h1>
               </div>
+              <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                Alert Settings
+              </h1>
             </div>
-            <button onClick={handleLogout} className="btn-secondary">
-              Logout
-            </button>
+
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center gap-3">
+              <button
+                onClick={() => navigate("/dashboard")}
+                className="btn-ghost"
+              >
+                Dashboard
+              </button>
+              <button onClick={handleLogout} className="btn-secondary">
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
-          <p className="text-gray-600 text-lg">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Page Header */}
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">
+            Alert Settings
+          </h2>
+          <p className="text-gray-600">
             Configure where you want to receive drift detection alerts
           </p>
         </div>
@@ -181,7 +175,7 @@ export default function AlertSettingsPage() {
         {/* Error Message */}
         {error && (
           <div className="alert-error mb-6">
-            <p className="text-sm">{error}</p>
+            <p>{error}</p>
           </div>
         )}
 
@@ -189,7 +183,7 @@ export default function AlertSettingsPage() {
         {!showAddForm && (
           <button
             onClick={() => setShowAddForm(true)}
-            className="btn-primary px-6 py-3 shadow-md hover:shadow-lg flex items-center gap-2 mb-6"
+            className="btn-primary mb-8"
           >
             <svg
               className="w-5 h-5"
@@ -210,18 +204,16 @@ export default function AlertSettingsPage() {
 
         {/* Add Form */}
         {showAddForm && (
-          <div className="card p-6 mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          <div className="card mb-8">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">
               Add New Alert Channel
             </h3>
 
             <form onSubmit={handleSubmit}>
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {/* Channel Type */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Channel Type
-                  </label>
+                  <label className="label">Channel Type</label>
                   <div className="flex gap-4">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -253,9 +245,7 @@ export default function AlertSettingsPage() {
                 {/* Email Input */}
                 {channelType === "email" && (
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Email Address
-                    </label>
+                    <label className="label">Email Address</label>
                     <input
                       type="email"
                       value={email}
@@ -271,9 +261,7 @@ export default function AlertSettingsPage() {
                 {/* Slack Webhook Input */}
                 {channelType === "slack" && (
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Slack Webhook URL
-                    </label>
+                    <label className="label">Slack Webhook URL</label>
                     <input
                       type="url"
                       value={webhookUrl}
@@ -307,14 +295,14 @@ export default function AlertSettingsPage() {
                     setWebhookUrl("");
                     setError("");
                   }}
-                  className="btn-secondary"
+                  className="btn-outline"
                   disabled={submitting}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="btn-primary shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="btn-primary"
                   disabled={submitting}
                 >
                   {submitting ? "Adding..." : "Add Channel"}
@@ -325,7 +313,7 @@ export default function AlertSettingsPage() {
         )}
 
         {/* Channels List */}
-        <div className="space-y-4">
+        <div className="space-y-6">
           {channels.length === 0 ? (
             <div className="card p-12 text-center">
               <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl mb-6">
@@ -346,13 +334,13 @@ export default function AlertSettingsPage() {
               <h3 className="text-2xl font-bold text-gray-900 mb-3">
                 No alert channels configured
               </h3>
-              <p className="text-gray-600 text-lg mb-8">
+              <p className="text-gray-600 mb-8">
                 Add an email or Slack channel to receive drift detection alerts
               </p>
             </div>
           ) : (
             channels.map((channel) => (
-              <div key={channel.id} className="card-hover p-6">
+              <div key={channel.id} className="card">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div
@@ -395,7 +383,7 @@ export default function AlertSettingsPage() {
                           <span className="badge-success">Active</span>
                         )}
                       </div>
-                      <p className="text-gray-600 text-sm mt-1">
+                      <p className="text-sm text-gray-600 mt-1">
                         {channel.configuration &&
                         "email" in channel.configuration
                           ? channel.configuration.email
@@ -412,7 +400,7 @@ export default function AlertSettingsPage() {
                   </div>
                   <button
                     onClick={() => handleDelete(channel.id)}
-                    className="btn-danger px-4 py-2"
+                    className="btn-danger"
                   >
                     Delete
                   </button>

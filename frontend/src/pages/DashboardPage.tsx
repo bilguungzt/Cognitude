@@ -61,9 +61,9 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <LoadingSpinner size="lg" />
+      <Layout title="Dashboard">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <LoadingSpinner size="lg" text="Loading dashboard..." />
         </div>
       </Layout>
     );
@@ -71,16 +71,18 @@ export default function DashboardPage() {
 
   if (error) {
     return (
-      <Layout>
-        <EmptyState
-          icon={AlertTriangle}
-          title="Failed to load dashboard"
-          description={error}
-          action={{
-            label: "Retry",
-            onClick: loadDashboardData,
-          }}
-        />
+      <Layout title="Dashboard">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <EmptyState
+            icon={AlertTriangle}
+            title="Failed to load dashboard"
+            description={error}
+            action={{
+              label: "Retry",
+              onClick: loadDashboardData,
+            }}
+          />
+        </div>
       </Layout>
     );
   }
@@ -92,102 +94,106 @@ export default function DashboardPage() {
     (cacheStats?.lifetime_savings.total_cost_saved || 0);
 
   return (
-    <Layout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+    <Layout title="Dashboard">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Page Header */}
+        <div className="mb-8">
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">
             Dashboard
-          </h1>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
+          </h2>
+          <p className="text-gray-600">
             Monitor your LLM usage, costs, and performance in real-time
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="card group hover:shadow-lg transition-all duration-200">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg group-hover:scale-110 transition-transform">
-                <Activity className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="card p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">
+                  Total Requests
+                </p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">
+                  {usageStats?.total_requests.toLocaleString() || 0}
+                </p>
               </div>
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                Last 7 days
-              </span>
-            </div>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {usageStats?.total_requests.toLocaleString() || 0}
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              Total Requests
-            </p>
-          </div>
-
-          <div className="card group hover:shadow-lg transition-all duration-200">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg group-hover:scale-110 transition-transform">
-                <DollarSign className="w-6 h-6 text-green-600 dark:text-green-400" />
+              <div className="p-3 bg-blue-100 rounded-full">
+                <Activity className="w-6 h-6 text-blue-600" />
               </div>
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                Last 7 days
-              </span>
             </div>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-              ${(usageStats?.total_cost || 0).toFixed(2)}
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              Total Cost
-            </p>
-          </div>
-
-          <div className="card group hover:shadow-lg transition-all duration-200">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg group-hover:scale-110 transition-transform">
-                <Zap className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-              </div>
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                Redis
-              </span>
-            </div>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {(cacheHitRate * 100).toFixed(1)}%
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              Cache Hit Rate
-            </p>
-            <div className="mt-3 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-              <div
-                className="bg-purple-600 h-2 rounded-full transition-all duration-500"
-                style={{ width: `${cacheHitRate * 100}%` }}
-              />
+            <div className="mt-4">
+              <p className="text-xs text-gray-500">Last 7 days</p>
             </div>
           </div>
 
-          <div className="card group hover:shadow-lg transition-all duration-200">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg group-hover:scale-110 transition-transform">
-                <TrendingUp className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+          <div className="card p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">
+                  Total Cost
+                </p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">
+                  ${(usageStats?.total_cost || 0).toFixed(2)}
+                </p>
               </div>
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                Lifetime
-              </span>
+              <div className="p-3 bg-green-100 rounded-full">
+                <DollarSign className="w-6 h-6 text-green-600" />
+              </div>
             </div>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-              ${totalSavings.toFixed(2)}
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              Total Savings
-            </p>
+            <div className="mt-4">
+              <p className="text-xs text-gray-500">Last 7 days</p>
+            </div>
+          </div>
+
+          <div className="card p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">
+                  Cache Hit Rate
+                </p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">
+                  {(cacheHitRate * 100).toFixed(1)}%
+                </p>
+              </div>
+              <div className="p-3 bg-purple-100 rounded-full">
+                <Zap className="w-6 h-6 text-purple-600" />
+              </div>
+            </div>
+            <div className="mt-4">
+              <p className="text-xs text-gray-500">Redis</p>
+            </div>
+          </div>
+
+          <div className="card p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">
+                  Total Savings
+                </p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">
+                  ${totalSavings.toFixed(2)}
+                </p>
+              </div>
+              <div className="p-3 bg-emerald-100 rounded-full">
+                <TrendingUp className="w-6 h-6 text-emerald-600" />
+              </div>
+            </div>
+            <div className="mt-4">
+              <p className="text-xs text-gray-500">Lifetime</p>
+            </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="card">
+          <div className="card p-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+              <h2 className="text-lg font-semibold text-gray-900">
                 Provider Status
               </h2>
               <Link
                 to="/providers"
-                className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                className="btn-ghost btn-sm"
               >
                 Manage
                 <ArrowRight className="w-4 h-4" />
@@ -209,7 +215,7 @@ export default function DashboardPage() {
                 {providers.map((provider) => (
                   <div
                     key={provider.id}
-                    className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-750 transition-colors"
+                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                   >
                     <div className="flex items-center gap-3">
                       <div
@@ -220,10 +226,10 @@ export default function DashboardPage() {
                         }`}
                       />
                       <div>
-                        <p className="font-medium text-gray-900 dark:text-white capitalize">
+                        <p className="font-medium text-gray-900 capitalize">
                           {provider.provider}
                         </p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                        <p className="text-sm text-gray-600">
                           Priority: {provider.priority}
                         </p>
                       </div>
@@ -239,17 +245,17 @@ export default function DashboardPage() {
             )}
           </div>
 
-          <div className="card">
+          <div className="card p-6">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-yellow-500" />
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                <h2 className="text-lg font-semibold text-gray-900">
                   AI Recommendations
                 </h2>
               </div>
               <Link
                 to="/cost-analytics"
-                className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                className="btn-ghost btn-sm"
               >
                 View All
                 <ArrowRight className="w-4 h-4" />
@@ -272,31 +278,31 @@ export default function DashboardPage() {
                       key={index}
                       className={`p-4 border-l-4 rounded-lg ${
                         rec.priority === "high"
-                          ? "border-red-500 bg-red-50 dark:bg-red-900/10"
+                          ? "border-red-500 bg-red-50"
                           : rec.priority === "medium"
-                          ? "border-yellow-500 bg-yellow-50 dark:bg-yellow-900/10"
-                          : "border-blue-500 bg-blue-50 dark:bg-blue-900/10"
+                          ? "border-yellow-500 bg-yellow-50"
+                          : "border-blue-500 bg-blue-50"
                       }`}
                     >
                       <div className="flex items-start justify-between mb-2">
-                        <h3 className="font-semibold text-gray-900 dark:text-white">
+                        <h3 className="font-semibold text-gray-900">
                           {rec.title}
                         </h3>
-                        <span className="text-sm font-semibold text-green-600 dark:text-green-400">
+                        <span className="text-sm font-semibold text-green-600">
                           Save ${rec.potential_savings.toFixed(2)}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                      <p className="text-sm text-gray-600">
                         {rec.description}
                       </p>
                     </div>
                   ))}
 
                 {recommendations.total_potential_savings > 0 && (
-                  <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                    <p className="text-sm text-gray-700 dark:text-gray-300">
+                  <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200">
+                    <p className="text-sm text-gray-700">
                       <strong>Total potential savings:</strong>{" "}
-                      <span className="text-lg font-bold text-green-600 dark:text-green-400">
+                      <span className="text-lg font-bold text-green-600">
                         ${recommendations.total_potential_savings.toFixed(2)}
                         /month
                       </span>
@@ -309,16 +315,16 @@ export default function DashboardPage() {
         </div>
 
         {!hasData && providers.length === 0 && (
-          <div className="card bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border-2 border-blue-200 dark:border-blue-800">
+          <div className="card bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200">
             <div className="flex items-start gap-4">
               <div className="p-3 bg-blue-600 rounded-lg">
                 <Sparkles className="w-6 h-6 text-white" />
               </div>
               <div className="flex-1">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                <h2 className="text-xl font-semibold text-gray-900 mb-2">
                   Welcome to Cognitude! 🚀
                 </h2>
-                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                <p className="text-gray-600 mb-4">
                   Get started in 3 easy steps to start saving 30-85% on your LLM
                   costs
                 </p>
@@ -329,7 +335,7 @@ export default function DashboardPage() {
                     </div>
                     <Link
                       to="/providers"
-                      className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                      className="text-blue-600 hover:underline font-medium"
                     >
                       Configure your LLM providers (OpenAI, Anthropic, etc.)
                     </Link>
@@ -340,7 +346,7 @@ export default function DashboardPage() {
                     </div>
                     <Link
                       to="/docs"
-                      className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                      className="text-blue-600 hover:underline font-medium"
                     >
                       Update your OpenAI SDK to point to Cognitude
                     </Link>
@@ -349,7 +355,7 @@ export default function DashboardPage() {
                     <div className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
                       3
                     </div>
-                    <span className="text-gray-700 dark:text-gray-300 font-medium">
+                    <span className="text-gray-700 font-medium">
                       Start saving money automatically! 💰
                     </span>
                   </div>
