@@ -12,7 +12,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import { useAuth } from "../contexts/AuthContext";
-import { api } from "../services/api";
+import { api } from "../services";
 import type { MLModel, DriftStatus, DriftHistoryPoint } from "../types/api";
 
 export default function ModelDriftPage() {

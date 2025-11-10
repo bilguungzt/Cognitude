@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { api } from "../services/api";
+import { api } from "../services";
 import type { CreateModelRequest } from "../types/api";
 
 interface RegisterModelModalProps {

@@ -1,0 +1,34 @@
+{
+  "channels": [
+    {
+      "id": 1,
+      "channel_type": "slack",
+      "configuration": {
+        "webhook_url": "https://hooks.slack.com/services/AAA/BBB/CCC"
+      },
+      "is_active": true
+    },
+    {
+      "id": 2,
+      "channel_type": "email",
+      "configuration": { "email": "alerts@example.com" },
+      "is_active": true
+    }
+  ],
+  "configs": [
+    {
+      "id": 1,
+      "alert_type": "daily_cost",
+      "threshold_usd": 50.0,
+      "enabled": true,
+      "last_triggered": null
+    },
+    {
+      "id": 2,
+      "alert_type": "monthly_cost",
+      "threshold_usd": 1200.0,
+      "enabled": true,
+      "last_triggered": "2025-10-01T12:00:00Z"
+    }
+  ]
+}

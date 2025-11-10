@@ -1,4 +1,5 @@
 from typing import cast
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.exc import IntegrityError
@@ -79,4 +80,5 @@ def register_organization(
             id=cast(int, db_organization.id),
             name=cast(str, db_organization.name),
             api_key=api_key,
+            created_at=cast(datetime, db_organization.created_at),
         )

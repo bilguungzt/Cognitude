@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { api } from "../services/api";
+import { api } from "../services";
 import type { MLModel, DriftStatus } from "../types/api";
 
 export default function ModelDetailsPage() {

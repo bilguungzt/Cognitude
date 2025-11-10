@@ -1,426 +1,364 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "../contexts/AuthContext";
-import { api } from "../services/api";
-import type { MLModel, DriftStatus } from "../types/api";
-import { useNavigate } from "react-router-dom";
-import RegisterModelModal from "../components/RegisterModelModal";
-import Footer from "../components/Footer";
-import { Menu, X } from "lucide-react";
+import { Link } from "react-router-dom";
+import {
+  Zap,
+  TrendingUp,
+  DollarSign,
+  Database,
+  Activity,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  ArrowRight,
+  Sparkles,
+} from "lucide-react";
+import Layout from "../components/Layout";
+import LoadingSpinner from "../components/LoadingSpinner";
+import EmptyState from "../components/EmptyState";
+import api from "../services";
+import type {
+  UsageStats,
+  CacheStats,
+  Provider,
+  RecommendationsResponse,
+} from "../types/api";
 
 export default function DashboardPage() {
-  const [models, setModels] = useState<MLModel[]>([]);
-  const [driftStatuses, setDriftStatuses] = useState<
-    Record<number, DriftStatus>
-  >({});
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [lastChecked, setLastChecked] = useState<Date>(new Date());
-  const { logout } = useAuth();
-  const navigate = useNavigate();
+  const [error, setError] = useState<string | null>(null);
+  const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
+  const [cacheStats, setCacheStats] = useState<CacheStats | null>(null);
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [recommendations, setRecommendations] =
+    useState<RecommendationsResponse | null>(null);
 
   useEffect(() => {
-    loadModels();
-    // Poll for updates every 30 seconds
-    const interval = setInterval(loadModels, 30000);
-    return () => clearInterval(interval);
+    loadDashboardData();
   }, []);
 
-  const getRelativeTime = (date: Date): string => {
-    const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-    if (diffInSeconds < 10) return "Just now";
-    if (diffInSeconds < 60) return `${diffInSeconds} seconds ago`;
-
-    const diffInMinutes = Math.floor(diffInSeconds / 60);
-    if (diffInMinutes < 60)
-      return `${diffInMinutes} ${
-        diffInMinutes === 1 ? "minute" : "minutes"
-      } ago`;
-
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    if (diffInHours < 24)
-      return `${diffInHours} ${diffInHours === 1 ? "hour" : "hours"} ago`;
-
-    const diffInDays = Math.floor(diffInHours / 24);
-    return `${diffInDays} ${diffInDays === 1 ? "day" : "days"} ago`;
-  };
-
-  const loadModels = async () => {
+  const loadDashboardData = async () => {
     try {
-      setLastChecked(new Date());
-      const data = await api.getModels();
-      setModels(data);
+      setLoading(true);
+      setError(null);
 
-      // Load drift status for each model
-      const statuses: Record<number, DriftStatus> = {};
-      await Promise.all(
-        data.map(async (model) => {
-          try {
-            const drift = await api.getCurrentDrift(model.id);
-            statuses[model.id] = drift;
-          } catch (err) {
-            // Model may not have baseline set yet
-            statuses[model.id] = {
-              drift_detected: false,
-              message: "Baseline not configured",
-            };
-          }
-        })
-      );
-      setDriftStatuses(statuses);
-      setError("");
+      const [usage, cache, providerList, recs] = await Promise.all([
+        api.getUsageStats({ group_by: "day" }).catch(() => null),
+        api.getCacheStats().catch(() => null),
+        api.getProviders().catch(() => []),
+        api.getRecommendations().catch(() => null),
+      ]);
+
+      setUsageStats(usage);
+      setCacheStats(cache);
+      setProviders(providerList);
+      setRecommendations(recs);
     } catch (err) {
-      setError("Failed to load models");
+      setError(api.handleError(err));
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
-
-  const getDriftBadge = (status: DriftStatus | undefined) => {
-    if (!status) {
-      return (
-        <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-          Loading...
-        </span>
-      );
-    }
-
-    if (status.message) {
-      return (
-        <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-          {status.message}
-        </span>
-      );
-    }
-
-    if (status.drift_detected) {
-      return (
-        <div className="flex items-center gap-2">
-          <span className="px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
-            ⚠️ Drift Detected
-          </span>
-          <span className="text-sm text-gray-600">
-            Score: {status.drift_score?.toFixed(3)} | p-value:{" "}
-            {status.p_value?.toFixed(4)}
-          </span>
-        </div>
-      );
-    }
-
-    return (
-      <div className="flex items-center gap-2">
-        <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
-          ✓ No Drift
-        </span>
-        <span className="text-sm text-gray-600">
-          Score: {status.drift_score?.toFixed(3)}
-        </span>
-      </div>
-    );
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="spinner h-12 w-12 border-indigo-600 mb-4"></div>
-          <p className="text-gray-600 font-medium">Loading your models...</p>
+      <Layout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <LoadingSpinner size="lg" />
         </div>
-      </div>
+      </Layout>
     );
   }
 
+  if (error) {
+    return (
+      <Layout>
+        <EmptyState
+          icon={AlertTriangle}
+          title="Failed to load dashboard"
+          description={error}
+          action={{
+            label: "Retry",
+            onClick: loadDashboardData,
+          }}
+        />
+      </Layout>
+    );
+  }
+
+  const hasData = usageStats && usageStats.total_requests > 0;
+  const cacheHitRate = cacheStats?.redis.hit_rate || 0;
+  const totalSavings =
+    (usageStats?.cost_savings || 0) +
+    (cacheStats?.lifetime_savings.total_cost_saved || 0);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
-      {/* Header */}
-      <header className="glass border-b border-gray-100 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center shadow-md">
-                <svg
-                  className="w-6 h-6 text-white"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                  />
-                </svg>
-              </div>
-              <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                Cognitude AI
-              </h1>
-            </div>
-
-            {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center gap-3">
-              <button onClick={() => navigate("/cost")} className="btn-ghost">
-                Cost
-              </button>
-              <button onClick={() => navigate("/setup")} className="btn-ghost">
-                📖 Setup Guide
-              </button>
-              <button onClick={() => navigate("/docs")} className="btn-ghost">
-                📚 API Docs
-              </button>
-              <button onClick={() => navigate("/alerts")} className="btn-ghost">
-                Alert Settings
-              </button>
-              <button onClick={handleLogout} className="btn-secondary">
-                Logout
-              </button>
-            </div>
-
-            {/* Mobile Menu Button */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
-            >
-              {mobileMenuOpen ? (
-                <X className="w-6 h-6" />
-              ) : (
-                <Menu className="w-6 h-6" />
-              )}
-            </button>
-          </div>
-
-          {/* Mobile Navigation Menu */}
-          {mobileMenuOpen && (
-            <div className="md:hidden mt-4 pt-4 border-t border-gray-200">
-              <div className="flex flex-col gap-2">
-                <button
-                  onClick={() => {
-                    navigate("/cost");
-                    setMobileMenuOpen(false);
-                  }}
-                  className="btn-ghost text-left px-4 py-3"
-                >
-                  Cost
-                </button>
-                <button
-                  onClick={() => {
-                    navigate("/setup");
-                    setMobileMenuOpen(false);
-                  }}
-                  className="btn-ghost text-left px-4 py-3"
-                >
-                  📖 Setup Guide
-                </button>
-                <button
-                  onClick={() => {
-                    navigate("/docs");
-                    setMobileMenuOpen(false);
-                  }}
-                  className="btn-ghost text-left px-4 py-3"
-                >
-                  📚 API Docs
-                </button>
-                <button
-                  onClick={() => {
-                    navigate("/alerts");
-                    setMobileMenuOpen(false);
-                  }}
-                  className="btn-ghost text-left px-4 py-3"
-                >
-                  Alert Settings
-                </button>
-                <button
-                  onClick={() => {
-                    handleLogout();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="btn-secondary text-left px-4 py-3"
-                >
-                  Logout
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-32 w-full">
-        {/* Action Bar */}
-        <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
-              Your ML Models
-            </h2>
-            <p className="text-sm sm:text-base text-gray-600 mt-2">
-              Monitor drift and performance across all registered models
-            </p>
-          </div>
-          <button
-            onClick={() => setShowRegisterModal(true)}
-            className="btn-primary px-4 sm:px-6 py-2 sm:py-3 shadow-md hover:shadow-lg flex items-center gap-2 text-sm sm:text-base w-full sm:w-auto justify-center whitespace-nowrap"
-          >
-            <svg
-              className="w-4 h-4 sm:w-5 sm:h-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
-            <span className="hidden sm:inline">Register New Model</span>
-            <span className="sm:hidden">Register Model</span>
-          </button>
+    <Layout>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            Dashboard
+          </h1>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">
+            Monitor your LLM usage, costs, and performance in real-time
+          </p>
         </div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="alert-error mb-6">
-            <p className="text-sm">{error}</p>
-          </div>
-        )}
-
-        {/* Models Grid */}
-        {models.length === 0 ? (
-          <div className="card p-12 text-center">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl mb-6">
-              <svg
-                className="w-10 h-10 text-indigo-500"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                />
-              </svg>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="card group hover:shadow-lg transition-all duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg group-hover:scale-110 transition-transform">
+                <Activity className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+              </div>
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                Last 7 days
+              </span>
             </div>
-            <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-3">
-              No models yet
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {usageStats?.total_requests.toLocaleString() || 0}
             </h3>
-            <p className="text-base sm:text-lg text-gray-600 mb-8 max-w-md mx-auto px-4">
-              Get started by registering your first ML model and start
-              monitoring for drift
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Total Requests
             </p>
-            <button
-              onClick={() => setShowRegisterModal(true)}
-              className="btn-primary px-4 sm:px-6 py-2 sm:py-3 shadow-md hover:shadow-lg inline-flex items-center gap-2 text-sm sm:text-base"
-            >
-              <svg
-                className="w-4 h-4 sm:w-5 sm:h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
-              Register Your First Model
-            </button>
           </div>
-        ) : (
-          <div className="grid gap-6">
-            {models.map((model) => (
-              <div key={model.id} className="card-hover">
-                <div className="p-4 sm:p-6">
-                  <div className="flex flex-col sm:flex-row items-start justify-between mb-4 gap-3">
-                    <div>
-                      <h3 className="text-lg sm:text-xl font-bold text-gray-900">
-                        {model.name}
-                      </h3>
-                      <p className="text-sm sm:text-base text-gray-600 mt-1.5">
-                        Version {model.version}
-                        {model.description && ` • ${model.description}`}
-                      </p>
-                    </div>
-                    {getDriftBadge(driftStatuses[model.id])}
-                  </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
-                    <div>
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                        Model ID
-                      </p>
-                      <p className="font-semibold text-gray-900 mt-1">
-                        #{model.id}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                        Features
-                      </p>
-                      <p className="font-semibold text-gray-900 mt-1">
-                        {model.features.length}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                        Created
-                      </p>
-                      <p className="font-semibold text-gray-900 mt-1">
-                        {new Date(model.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                        Last Checked
-                      </p>
-                      <p className="font-semibold text-gray-900 mt-1">
-                        {getRelativeTime(lastChecked)}
-                      </p>
-                    </div>
-                  </div>
+          <div className="card group hover:shadow-lg transition-all duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg group-hover:scale-110 transition-transform">
+                <DollarSign className="w-6 h-6 text-green-600 dark:text-green-400" />
+              </div>
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                Last 7 days
+              </span>
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+              ${(usageStats?.total_cost || 0).toFixed(2)}
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Total Cost
+            </p>
+          </div>
 
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <button
-                      onClick={() => navigate(`/models/${model.id}`)}
-                      className="btn-primary px-4 sm:px-5 py-2 sm:py-2.5 text-sm sm:text-base"
+          <div className="card group hover:shadow-lg transition-all duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg group-hover:scale-110 transition-transform">
+                <Zap className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+              </div>
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                Redis
+              </span>
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {(cacheHitRate * 100).toFixed(1)}%
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Cache Hit Rate
+            </p>
+            <div className="mt-3 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+              <div
+                className="bg-purple-600 h-2 rounded-full transition-all duration-500"
+                style={{ width: `${cacheHitRate * 100}%` }}
+              />
+            </div>
+          </div>
+
+          <div className="card group hover:shadow-lg transition-all duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-3 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg group-hover:scale-110 transition-transform">
+                <TrendingUp className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <span className="text-sm text-gray-500 dark:text-gray-400">
+                Lifetime
+              </span>
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+              ${totalSavings.toFixed(2)}
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              Total Savings
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="card">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Provider Status
+              </h2>
+              <Link
+                to="/providers"
+                className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+              >
+                Manage
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+
+            {providers.length === 0 ? (
+              <EmptyState
+                icon={Database}
+                title="No providers configured"
+                description="Add your first LLM provider to start using the proxy"
+                action={{
+                  label: "Add Provider",
+                  onClick: () => (window.location.href = "/providers"),
+                }}
+              />
+            ) : (
+              <div className="space-y-3">
+                {providers.map((provider) => (
+                  <div
+                    key={provider.id}
+                    className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-750 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-2 h-2 rounded-full ${
+                          provider.enabled
+                            ? "bg-green-500 animate-pulse"
+                            : "bg-gray-400"
+                        }`}
+                      />
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white capitalize">
+                          {provider.provider}
+                        </p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          Priority: {provider.priority}
+                        </p>
+                      </div>
+                    </div>
+                    {provider.enabled ? (
+                      <CheckCircle className="w-5 h-5 text-green-500" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-gray-400" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="card">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-yellow-500" />
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  AI Recommendations
+                </h2>
+              </div>
+              <Link
+                to="/cost-analytics"
+                className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+              >
+                View All
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+
+            {!recommendations ||
+            recommendations.recommendations.length === 0 ? (
+              <EmptyState
+                icon={Sparkles}
+                title="No recommendations yet"
+                description="We need more usage data to generate personalized recommendations"
+              />
+            ) : (
+              <div className="space-y-3">
+                {recommendations.recommendations
+                  .slice(0, 3)
+                  .map((rec, index) => (
+                    <div
+                      key={index}
+                      className={`p-4 border-l-4 rounded-lg ${
+                        rec.priority === "high"
+                          ? "border-red-500 bg-red-50 dark:bg-red-900/10"
+                          : rec.priority === "medium"
+                          ? "border-yellow-500 bg-yellow-50 dark:bg-yellow-900/10"
+                          : "border-blue-500 bg-blue-50 dark:bg-blue-900/10"
+                      }`}
                     >
-                      View Details
-                    </button>
-                    <button
-                      onClick={() => navigate(`/models/${model.id}/drift`)}
-                      className="btn-ghost px-4 sm:px-5 py-2 sm:py-2.5 text-sm sm:text-base"
+                      <div className="flex items-start justify-between mb-2">
+                        <h3 className="font-semibold text-gray-900 dark:text-white">
+                          {rec.title}
+                        </h3>
+                        <span className="text-sm font-semibold text-green-600 dark:text-green-400">
+                          Save ${rec.potential_savings.toFixed(2)}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        {rec.description}
+                      </p>
+                    </div>
+                  ))}
+
+                {recommendations.total_potential_savings > 0 && (
+                  <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                    <p className="text-sm text-gray-700 dark:text-gray-300">
+                      <strong>Total potential savings:</strong>{" "}
+                      <span className="text-lg font-bold text-green-600 dark:text-green-400">
+                        ${recommendations.total_potential_savings.toFixed(2)}
+                        /month
+                      </span>
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {!hasData && providers.length === 0 && (
+          <div className="card bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border-2 border-blue-200 dark:border-blue-800">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-blue-600 rounded-lg">
+                <Sparkles className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                  Welcome to Cognitude! 🚀
+                </h2>
+                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                  Get started in 3 easy steps to start saving 30-85% on your LLM
+                  costs
+                </p>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                      1
+                    </div>
+                    <Link
+                      to="/providers"
+                      className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
                     >
-                      Drift History
-                    </button>
+                      Configure your LLM providers (OpenAI, Anthropic, etc.)
+                    </Link>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                      2
+                    </div>
+                    <Link
+                      to="/docs"
+                      className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                    >
+                      Update your OpenAI SDK to point to Cognitude
+                    </Link>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                      3
+                    </div>
+                    <span className="text-gray-700 dark:text-gray-300 font-medium">
+                      Start saving money automatically! 💰
+                    </span>
                   </div>
                 </div>
               </div>
-            ))}
+            </div>
           </div>
         )}
-      </main>
-
-      {/* Register Model Modal */}
-      <RegisterModelModal
-        isOpen={showRegisterModal}
-        onClose={() => setShowRegisterModal(false)}
-        onSuccess={() => loadModels()}
-      />
-
-      {/* Footer */}
-      <Footer />
-    </div>
+      </div>
+    </Layout>
   );
 }

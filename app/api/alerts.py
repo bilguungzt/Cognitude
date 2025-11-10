@@ -1,7 +1,7 @@
 """
 Alert management API endpoints.
 """
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
@@ -48,7 +48,7 @@ class AlertConfigResponse(BaseModel):
     alert_type: str
     threshold_usd: float
     enabled: bool
-    last_triggered: str | None
+    last_triggered: Optional[str]
     
     class Config:
         from_attributes = True
