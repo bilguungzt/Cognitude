@@ -172,6 +172,34 @@ class DriftAssureAPI {
     await this.client.delete(`/alert-channels/${channelId}`);
   }
 
+  // Analytics
+  async getUsageAnalytics(startDate?: string, endDate?: string): Promise<{
+    total_requests: number;
+    total_cost: number;
+    average_latency: number;
+    usage_by_day: Array<{
+      date: string;
+      requests: number;
+      cost: number;
+    }>;
+  }> {
+    const params: Record<string, string> = {};
+    if (startDate) params.start_date = startDate;
+    if (endDate) params.end_date = endDate;
+    
+    const response = await this.client.get<{
+      total_requests: number;
+      total_cost: number;
+      average_latency: number;
+      usage_by_day: Array<{
+        date: string;
+        requests: number;
+        cost: number;
+      }>;
+    }>("/analytics/usage", { params });
+    return response.data;
+  }
+
   // Health check
   async healthCheck(): Promise<{ message: string }> {
     const response = await this.client.get<{ message: string }>("/");

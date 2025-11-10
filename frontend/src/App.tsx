@@ -8,6 +8,7 @@ import ModelDetailsPage from "./pages/ModelDetailsPage";
 import ModelDriftPage from "./pages/ModelDriftPage";
 import SetupPage from "./pages/SetupPage";
 import DocsPage from "./pages/DocsPage";
+import CostDashboard from "./pages/CostDashboard";
 
 function App() {
   return (
@@ -60,6 +61,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <DocsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/cost"
+            element={
+              <ProtectedRoute>
+                <CostDashboard />
               </ProtectedRoute>
             }
           />

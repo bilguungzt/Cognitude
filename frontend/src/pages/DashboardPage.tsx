@@ -167,6 +167,9 @@ export default function DashboardPage() {
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-3">
+              <button onClick={() => navigate("/cost")} className="btn-ghost">
+                Cost
+              </button>
               <button onClick={() => navigate("/setup")} className="btn-ghost">
                 📖 Setup Guide
               </button>
@@ -198,6 +201,15 @@ export default function DashboardPage() {
           {mobileMenuOpen && (
             <div className="md:hidden mt-4 pt-4 border-t border-gray-200">
               <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => {
+                    navigate("/cost");
+                    setMobileMenuOpen(false);
+                  }}
+                  className="btn-ghost text-left px-4 py-3"
+                >
+                  Cost
+                </button>
                 <button
                   onClick={() => {
                     navigate("/setup");

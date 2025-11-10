@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from .. import crud, models
 from ..database import SessionLocal
 from ..security import verify_api_key, get_organization_from_api_key
+from ..schemas import ChatCompletionRequest, ChatCompletionResponse
 from typing import Generator
 
 
@@ -37,7 +38,127 @@ def calculate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> fl
     return input_cost + output_cost
 
 
-@router.post("/v1/chat/completions")
+@router.post(
+    "/v1/chat/completions",
+    summary="OpenAI Chat Completions Proxy",
+    description="""
+## Drop-in replacement for OpenAI's chat completions API
+
+This endpoint acts as a transparent proxy while logging all usage metrics for cost tracking and analytics.
+
+### 🔄 How it works:
+
+1. **User makes request** with two API keys:
+   - `Authorization: Bearer <openai-key>` - Your OpenAI API key (passed through to OpenAI)
+   - `X-API-Key: <driftassure-key>` - Your DriftAssure API key (for authentication & logging)
+
+2. **DriftAssure logs everything** to database:
+   - Request timestamp
+   - Model used (gpt-4, gpt-3.5-turbo, etc.)
+   - Token usage (prompt + completion)
+   - Cost calculated based on model pricing
+   - Response latency in milliseconds
+   - Organization ID (from your X-API-Key)
+
+3. **Request forwarded** to OpenAI API with your OpenAI key
+
+4. **Response returned** with full OpenAI response format
+
+### 💰 Cost Tracking
+
+- Automatically calculates cost based on token usage
+- Costs visible in `/analytics/usage` endpoint
+- Real-time tracking for all requests
+- No markup - just transparent logging
+
+### 🔐 Privacy & Security
+
+**What gets logged:**
+- ✅ Model name
+- ✅ Prompt tokens used
+- ✅ Completion tokens used
+- ✅ Total cost (calculated)
+- ✅ Response latency (ms)
+
+**What does NOT get logged:**
+- ❌ Message content (never logged for privacy)
+- ❌ User data or identifiable information
+- ❌ API keys (never stored)
+
+### 📝 Example Usage (Python):
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="your-openai-key",
+    base_url="https://api.driftassure.com",
+    default_headers={"X-API-Key": "your-driftassure-key"}
+)
+
+response = client.chat.completions.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+```
+
+### 🔗 Integration with Analytics
+
+All logged data is available via the `/analytics/usage` endpoint:
+- View total requests and costs
+- Track usage trends over time
+- Monitor API performance
+- Calculate cost savings
+    """,
+    tags=["proxy"],
+    response_model=ChatCompletionResponse,
+    responses={
+        200: {
+            "description": "Successful OpenAI API response",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": "chatcmpl-123",
+                        "object": "chat.completion",
+                        "created": 1699492800,
+                        "model": "gpt-3.5-turbo",
+                        "usage": {
+                            "prompt_tokens": 10,
+                            "completion_tokens": 20,
+                            "total_tokens": 30
+                        },
+                        "choices": [
+                            {
+                                "index": 0,
+                                "message": {
+                                    "role": "assistant",
+                                    "content": "Hello! How can I help you today?"
+                                },
+                                "finish_reason": "stop"
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        401: {
+            "description": "Invalid or missing X-API-Key",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Invalid API key"}
+                }
+            }
+        },
+        502: {
+            "description": "Error connecting to OpenAI API",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Error connecting to OpenAI API: Connection timeout"}
+                }
+            }
+        }
+    }
+)
 async def proxy_chat_completions(
     request: Request,
     organization=Depends(get_organization_from_api_key),
