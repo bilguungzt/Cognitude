@@ -1,10 +1,10 @@
-# DriftGuard AI - API Documentation
+# Cognitude AI - API Documentation
 
 ## Base URL
 
 ```
-http://localhost:8000  (Development)
-https://api.driftguard.ai  (Production)
+http://localhost:8000  (Local Development)
+https://api.cognitude.io  (Production)
 ```
 
 ## Authentication
@@ -12,7 +12,7 @@ https://api.driftguard.ai  (Production)
 All endpoints (except `/auth/register`) require an API key in the `X-API-Key` header:
 
 ```bash
-curl -H "X-API-Key: your-api-key-here" https://api.driftguard.ai/models/
+curl -H "X-API-Key: your-api-key-here" https://api.cognitude.io/models/
 ```
 
 ## Quick Start Guide
@@ -450,7 +450,7 @@ Remove an alert channel.
 
 ## Interactive API Documentation
 
-DriftGuard provides two interactive documentation interfaces:
+Cognitude provides two interactive documentation interfaces:
 
 ### Swagger UI
 
@@ -545,9 +545,9 @@ While background checks run every 15 minutes, you can also:
 We're building a Python SDK to make integration even easier:
 
 ```python
-from driftguard import DriftGuard
+from cognitude import Cognitude
 
-dg = DriftGuard(api_key="your-api-key")
+dg = Cognitude(api_key="your-api-key")
 
 # Register model
 model = dg.register_model(
@@ -574,10 +574,10 @@ Stay tuned!
 
 ## Support
 
-- **Documentation**: https://docs.driftguard.ai
-- **Email**: support@driftguard.ai
-- **GitHub**: https://github.com/bilguungzt/Drift_Guard
-- **Slack Community**: [Join our Slack](https://driftguard.ai/slack)
+- **Documentation**: https://docs.cognitude.io
+- **Email**: support@cognitude.io
+- **GitHub**: https://github.com/bilguungzt/Cognitude
+- **Slack Community**: [Join our Slack](https://cognitude.io/slack)
 
 ---
 

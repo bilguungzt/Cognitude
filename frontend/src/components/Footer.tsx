@@ -7,7 +7,7 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Brand Section */}
           <div className="col-span-1 md:col-span-1">
-            <h3 className="text-white font-bold text-xl mb-4">DriftAssure</h3>
+            <h3 className="text-white font-bold text-xl mb-4">Cognitude</h3>
             <p className="text-sm text-gray-400 mb-4">
               ML Model Monitoring & Drift Detection Platform
             </p>
@@ -58,7 +58,7 @@ export default function Footer() {
             <ul className="space-y-2 text-sm">
               <li>
                 <a
-                  href="https://api.driftassure.com/docs"
+                  href="https://api.cognitude.com/docs"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-white transition-colors"
@@ -68,7 +68,7 @@ export default function Footer() {
               </li>
               <li>
                 <a
-                  href="https://api.driftassure.com/redoc"
+                  href="https://api.cognitude.com/redoc"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-white transition-colors"
@@ -88,7 +88,7 @@ export default function Footer() {
               </li>
               <li>
                 <a
-                  href="https://api.driftassure.com/health"
+                  href="https://api.cognitude.com/health"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-white transition-colors"
@@ -105,15 +105,15 @@ export default function Footer() {
             <ul className="space-y-2 text-sm">
               <li>
                 <a
-                  href="mailto:support@driftassure.com"
+                  href="mailto:support@cognitude.io"
                   className="hover:text-white transition-colors"
                 >
-                  support@driftassure.com
+                  support@cognitude.io
                 </a>
               </li>
               <li>
                 <a
-                  href="https://driftassure.com/support"
+                  href="https://cognitude.com/support"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-white transition-colors"
@@ -123,7 +123,7 @@ export default function Footer() {
               </li>
               <li>
                 <a
-                  href="https://driftassure.com/privacy"
+                  href="https://cognitude.com/privacy"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-white transition-colors"
@@ -133,7 +133,7 @@ export default function Footer() {
               </li>
               <li>
                 <a
-                  href="https://driftassure.com/terms"
+                  href="https://cognitude.com/terms"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-white transition-colors"
@@ -149,7 +149,7 @@ export default function Footer() {
         <div className="mt-12 pt-8 border-t border-gray-800">
           <div className="text-center">
             <p className="text-sm text-gray-500">
-              © {new Date().getFullYear()} DriftAssure by Cognitude. All rights
+              © {new Date().getFullYear()} Cognitude by Cognitude. All rights
               reserved.
             </p>
           </div>

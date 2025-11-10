@@ -1,196 +1,137 @@
-from datetime import datetime, date
-from typing import List, Dict, Any
+"""
+Analytics API endpoints for LLM usage metrics.
+"""
+from datetime import date
+from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
-from .. import models
-from ..database import SessionLocal
-from ..security import verify_api_key
-from ..schemas import AnalyticsResponse
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+from .. import crud, schemas
+from ..database import get_db
+from ..security import get_organization_from_api_key
+from ..services.usage_analyzer import UsageAnalyzer
 
-router = APIRouter()
 
-@router.get(
-    "/analytics/usage",
-    summary="Get Usage Analytics",
-    description="""
-## Retrieve aggregated usage metrics and cost analytics
+router = APIRouter(prefix="/analytics", tags=["analytics"])
 
-This endpoint provides comprehensive analytics about your API usage, costs, and performance metrics.
 
-### 📊 What You Get:
-
-- **Total requests**: Count of all API calls made through the proxy
-- **Total cost**: Sum of all costs in USD (calculated from token usage)
-- **Average latency**: Mean response time in milliseconds
-- **Daily breakdown**: Usage and costs aggregated per day
-
-### 💡 Use Cases:
-
-- **📈 Dashboard Integration**: Power your analytics dashboard with real-time metrics
-- **💰 Cost Tracking**: Monitor spending and track cost savings vs direct OpenAI usage
-- **⚡ Performance Monitoring**: Analyze API response times and latency trends
-- **📊 Trend Analysis**: Visualize usage patterns over time to optimize consumption
-
-### 🔍 Optional Filters:
-
-You can filter the analytics by date range using query parameters:
-
-- `start_date`: Filter from this date (YYYY-MM-DD format, e.g., 2025-11-01)
-- `end_date`: Filter until this date (YYYY-MM-DD format, e.g., 2025-11-09)
-
-If no dates are provided, all historical data is returned.
-
-### 📝 Example Usage:
-
-**Get all-time analytics:**
-```bash
-curl -X GET "https://api.driftassure.com/analytics/usage" \\
-  -H "X-API-Key: your-driftassure-key"
-```
-
-**Get analytics for specific date range:**
-```bash
-curl -X GET "https://api.driftassure.com/analytics/usage?start_date=2025-11-01&end_date=2025-11-09" \\
-  -H "X-API-Key: your-driftassure-key"
-```
-
-### 📊 Dashboard Integration Tips:
-
-With this data, you can:
-- Show "Total Saved" by comparing to direct OpenAI pricing
-- Display cache hit rate (if caching enabled)
-- Calculate and show cost reduction percentage
-- Visualize daily cost trends with charts
-- Set up cost alerts when spending exceeds thresholds
-- Track API performance and identify slow requests
-
-### 🔗 Data Source:
-
-All metrics come from the usage logs created by the `/v1/chat/completions` proxy endpoint. Every request made through the proxy is automatically logged with:
-- Timestamp
-- Model used
-- Token counts (prompt + completion)
-- Calculated cost
-- Response latency
-
-This ensures accurate, real-time analytics for your entire organization.
-    """,
-    tags=["analytics"],
-    response_model=AnalyticsResponse,
-    responses={
-        200: {
-            "description": "Successful analytics response",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "total_requests": 15420,
-                        "total_cost": 127.45,
-                        "average_latency": 342.5,
-                        "usage_by_day": [
-                            {
-                                "date": "2025-11-08",
-                                "requests": 1180,
-                                "cost": 11.20
-                            },
-                            {
-                                "date": "2025-11-09",
-                                "requests": 1250,
-                                "cost": 12.30
-                            }
-                        ]
-                    }
-                }
-            }
-        },
-        401: {
-            "description": "Invalid or missing X-API-Key",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Invalid API key"}
-                }
-            }
-        }
-    }
-)
-async def get_usage_analytics(
-    start_date: str = Query(None, description="Start date in YYYY-MM-DD format"),
-    end_date: str = Query(None, description="End date in YYYY-MM-DD format"),
-    organization = Depends(verify_api_key),
-    db: Session = Depends(get_db)
+@router.get("/usage", response_model=schemas.AnalyticsResponse)
+def get_usage_analytics(
+    start_date: Optional[date] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="End date (YYYY-MM-DD)"),
+    db: Session = Depends(get_db),
+    organization: schemas.Organization = Depends(get_organization_from_api_key)
 ):
     """
-    Get usage analytics for the authenticated organization.
-    Returns total requests, total cost, average latency, and daily usage breakdown.
+    Get comprehensive usage analytics and cost metrics.
+    
+    Returns aggregated metrics including:
+    - Total requests made through the LLM proxy
+    - Total cost in USD (based on token usage)
+    - Average latency in milliseconds
+    - Daily breakdown of usage and costs
+    - Provider breakdown showing usage per LLM provider
+    - Model breakdown showing usage per model
+    - Cache statistics (hit rate, savings)
+    
+    Optional filters:
+    - start_date: Filter from this date (inclusive)
+    - end_date: Filter until this date (inclusive)
     """
-    # Build query filters
-    query = db.query(models.APILog).filter(models.APILog.organization_id == organization.id)
+    analytics = crud.get_analytics(
+        db,
+        organization.id,
+        start_date=start_date,
+        end_date=end_date
+    )
     
-    # Apply date filters if provided
-    if start_date:
-        start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
-        query = query.filter(func.date(models.APILog.timestamp) >= start_dt)
+    return analytics
+
+
+@router.get("/recommendations")
+def get_optimization_recommendations(
+    days: int = Query(30, description="Number of days to analyze", ge=1, le=90),
+    db: Session = Depends(get_db),
+    organization: schemas.Organization = Depends(get_organization_from_api_key)
+):
+    """
+    Get AI-powered optimization recommendations based on usage patterns.
     
-    if end_date:
-        end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
-        query = query.filter(func.date(models.APILog.timestamp) <= end_dt)
+    Analyzes your LLM usage over the specified period and generates actionable
+    recommendations to reduce costs and improve efficiency.
     
-    # Get summary statistics
-    summary_result = query.with_entities(
-        func.count(models.APILog.id).label('total_requests'),
-        func.sum(models.APILog.total_cost).label('total_cost'),
-        func.avg(models.APILog.latency_ms).label('average_latency')
-    ).first()
+    **Recommendation Types**:
+    1. **Cache Opportunities**: Identify duplicate requests that could be cached
+    2. **Model Downgrades**: Suggest cheaper models for simple tasks
+    3. **Max Tokens Optimization**: Optimize token limits based on actual usage
+    4. **Smart Routing**: Enable automatic model selection for cost savings
+    5. **Prompt Optimization**: Identify long prompts that could be shortened
     
-    if summary_result:
-        total_requests = summary_result[0] or 0
-        total_cost = float(summary_result[1] or 0.0) if summary_result[1] is not None else 0.0
-        average_latency = float(summary_result[2] or 0.0) if summary_result[2] is not None else 0.0
-    else:
-        total_requests = 0
-        total_cost = 0.0
-        average_latency = 0.0
+    **Each recommendation includes**:
+    - Clear title and description
+    - Actionable steps to implement
+    - Estimated monthly savings in USD
+    - Priority level (high/medium/low)
+    - Impact assessment
+    - Detailed metrics and analysis
     
-    # Get daily usage breakdown
-    daily_query = db.query(
-        func.date(models.APILog.timestamp).label('date'),
-        func.count(models.APILog.id).label('requests'),
-        func.sum(models.APILog.total_cost).label('cost')
-    ).filter(
-        models.APILog.organization_id == organization.id
-    ).group_by(func.date(models.APILog.timestamp))
+    **Example Use Cases**:
+    - "Where can I save the most money?"
+    - "Are my prompts too long?"
+    - "Should I switch to cheaper models?"
+    - "Is caching working effectively?"
     
-    # Apply date filters to daily query as well
-    if start_date:
-        start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
-        daily_query = daily_query.filter(func.date(models.APILog.timestamp) >= start_dt)
+    **Parameters**:
+    - days: Analysis period (default 30, max 90)
     
-    if end_date:
-        end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
-        daily_query = daily_query.filter(func.date(models.APILog.timestamp) <= end_dt)
+    **Returns**:
+    List of recommendations sorted by estimated savings (highest first)
+    """
+    analyzer = UsageAnalyzer(db, organization.id)
+    recommendations = analyzer.get_recommendations(days)
     
-    daily_query = daily_query.order_by(func.date(models.APILog.timestamp))
-    daily_results = daily_query.all()
-    
-    usage_by_day = [
-        {
-            "date": str(row.date),
-            "requests": row.requests,
-            "cost": float(row.cost or 0.0)
-        }
-        for row in daily_results
-    ]
+    # Calculate total potential savings
+    total_savings = sum(r.get('estimated_monthly_savings_usd', 0) for r in recommendations)
     
     return {
-        "total_requests": total_requests,
-        "total_cost": total_cost,
-        "average_latency": average_latency,
-        "usage_by_day": usage_by_day
+        'analysis_period_days': days,
+        'total_recommendations': len(recommendations),
+        'total_potential_monthly_savings_usd': round(total_savings, 2),
+        'recommendations': recommendations
     }
+
+
+@router.get("/breakdown")
+def get_usage_breakdown(
+    days: int = Query(30, description="Number of days to analyze", ge=1, le=90),
+    db: Session = Depends(get_db),
+    organization: schemas.Organization = Depends(get_organization_from_api_key)
+):
+    """
+    Get detailed usage breakdown and statistics.
+    
+    Provides comprehensive analysis of your LLM usage including:
+    - Total requests, costs, and tokens
+    - Cache performance metrics
+    - Cost breakdown by model
+    - Cost breakdown by provider
+    - Daily usage trends
+    - Average latency
+    
+    **Perfect for**:
+    - Building custom dashboards
+    - Tracking usage trends
+    - Understanding cost distribution
+    - Monitoring cache effectiveness
+    - Analyzing latency patterns
+    
+    **Parameters**:
+    - days: Analysis period (default 30, max 90)
+    
+    **Returns**:
+    Comprehensive usage statistics with multiple breakdowns
+    """
+    analyzer = UsageAnalyzer(db, organization.id)
+    breakdown = analyzer.get_usage_breakdown(days)
+    
+    return breakdown

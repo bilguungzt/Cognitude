@@ -1,151 +1,191 @@
 """
-Pydantic schemas for API request/response models.
-These models are used to generate OpenAPI/Swagger documentation.
+Pydantic schemas for Cognitude LLM Monitoring Platform API.
+These models handle request/response validation and generate OpenAPI documentation.
 """
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-from datetime import date
+from datetime import datetime
 
 
 # ============================================================================
-# Proxy Endpoint Schemas
+# Organization Schemas
+# ============================================================================
+
+class OrganizationCreate(BaseModel):
+    """Schema for creating a new organization."""
+    name: str = Field(..., description="Organization name", min_length=3, max_length=100)
+    
+    class Config:
+        json_schema_extra = {"example": {"name": "Acme Corp"}}
+
+
+class Organization(BaseModel):
+    """Schema for organization response."""
+    id: int
+    name: str
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class OrganizationWithAPIKey(BaseModel):
+    """Schema for organization response including API key."""
+    id: int
+    name: str
+    api_key: str
+    created_at: datetime
+
+
+# ============================================================================
+# LLM Request/Response Schemas (OpenAI Compatible)
 # ============================================================================
 
 class ChatMessage(BaseModel):
     """A single message in a chat conversation."""
-    role: str = Field(..., description="The role of the message author (system, user, or assistant)")
-    content: str = Field(..., description="The content of the message")
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "role": "user",
-                "content": "What is the capital of France?"
-            }
-        }
+    role: str
+    content: str
+
+
+# Alias for backwards compatibility
+Message = ChatMessage
 
 
 class ChatCompletionRequest(BaseModel):
-    """Request body for chat completions."""
-    model: str = Field(..., description="ID of the model to use (e.g., gpt-4, gpt-3.5-turbo)")
-    messages: List[ChatMessage] = Field(..., description="List of messages in the conversation")
-    temperature: Optional[float] = Field(1.0, description="Sampling temperature (0-2)", ge=0, le=2)
-    max_tokens: Optional[int] = Field(None, description="Maximum tokens to generate")
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "model": "gpt-3.5-turbo",
-                "messages": [
-                    {"role": "user", "content": "Hello!"}
-                ],
-                "temperature": 0.7
-            }
-        }
+    """OpenAI-compatible chat completion request."""
+    model: str
+    messages: List[ChatMessage]
+    temperature: Optional[float] = 1.0
+    max_tokens: Optional[int] = None
+    top_p: Optional[float] = 1.0
+    frequency_penalty: Optional[float] = 0.0
+    presence_penalty: Optional[float] = 0.0
+    stream: Optional[bool] = False
 
 
 class UsageInfo(BaseModel):
     """Token usage information."""
-    prompt_tokens: int = Field(..., description="Number of tokens in the prompt")
-    completion_tokens: int = Field(..., description="Number of tokens in the completion")
-    total_tokens: int = Field(..., description="Total tokens used (prompt + completion)")
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "prompt_tokens": 10,
-                "completion_tokens": 20,
-                "total_tokens": 30
-            }
-        }
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
 
 
 class ChatCompletionChoice(BaseModel):
     """A single completion choice."""
-    index: int = Field(..., description="Choice index")
-    message: ChatMessage = Field(..., description="The generated message")
-    finish_reason: str = Field(..., description="Why the completion finished (stop, length, etc.)")
+    index: int
+    message: ChatMessage
+    finish_reason: str
 
 
 class ChatCompletionResponse(BaseModel):
-    """Response from chat completions endpoint."""
-    id: str = Field(..., description="Unique identifier for the completion")
-    object: str = Field(..., description="Object type (chat.completion)")
-    created: int = Field(..., description="Unix timestamp of creation")
-    model: str = Field(..., description="Model used for completion")
-    usage: UsageInfo = Field(..., description="Token usage statistics")
-    choices: List[ChatCompletionChoice] = Field(..., description="List of completion choices")
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "id": "chatcmpl-123",
-                "object": "chat.completion",
-                "created": 1699492800,
-                "model": "gpt-3.5-turbo",
-                "usage": {
-                    "prompt_tokens": 10,
-                    "completion_tokens": 20,
-                    "total_tokens": 30
-                },
-                "choices": [
-                    {
-                        "index": 0,
-                        "message": {
-                            "role": "assistant",
-                            "content": "Hello! How can I help you today?"
-                        },
-                        "finish_reason": "stop"
-                    }
-                ]
-            }
-        }
+    """OpenAI-compatible chat completion response."""
+    id: str
+    object: str = "chat.completion"
+    created: int
+    model: str
+    usage: UsageInfo
+    choices: List[ChatCompletionChoice]
+    cached: Optional[bool] = False
+    provider: Optional[str] = None
+    cost_usd: Optional[float] = None
 
 
 # ============================================================================
-# Analytics Endpoint Schemas
+# Analytics Schemas
 # ============================================================================
 
 class DailyUsage(BaseModel):
     """Daily usage statistics."""
-    date: str = Field(..., description="Date in YYYY-MM-DD format")
-    requests: int = Field(..., description="Number of API requests made on this day")
-    cost: float = Field(..., description="Total cost in USD for this day")
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "date": "2025-11-09",
-                "requests": 1250,
-                "cost": 12.30
-            }
-        }
+    date: str
+    requests: int
+    cost: float
+    cached_requests: int = 0
+    cache_savings: float = 0.0
+
+
+class ProviderUsage(BaseModel):
+    """Usage breakdown by provider."""
+    provider: str
+    requests: int
+    cost: float
+    avg_latency_ms: float
+
+
+class ModelUsage(BaseModel):
+    """Usage breakdown by model."""
+    model: str
+    requests: int
+    cost: float
+    total_tokens: int
 
 
 class AnalyticsResponse(BaseModel):
-    """Response from analytics usage endpoint."""
-    total_requests: int = Field(..., description="Total number of API requests in the time period")
-    total_cost: float = Field(..., description="Total cost in USD for all requests")
-    average_latency: float = Field(..., description="Average response latency in milliseconds")
-    usage_by_day: List[DailyUsage] = Field(..., description="Daily breakdown of usage and costs")
+    """Comprehensive analytics response."""
+    total_requests: int
+    total_cost: float
+    average_latency: float
+    cache_hit_rate: float
+    total_tokens: int
+    usage_by_day: List[DailyUsage]
+    usage_by_provider: List[ProviderUsage]
+    usage_by_model: List[ModelUsage]
+
+
+# ============================================================================
+# Provider Configuration Schemas
+# ============================================================================
+
+class ProviderConfigCreate(BaseModel):
+    """Schema for adding a provider configuration."""
+    provider: str
+    api_key: str
+    enabled: bool = True
+    priority: int = 0
+
+
+class ProviderConfig(BaseModel):
+    """Schema for provider configuration response."""
+    id: int
+    provider: str
+    enabled: bool
+    priority: int
+    created_at: datetime
     
     class Config:
-        json_schema_extra = {
-            "example": {
-                "total_requests": 15420,
-                "total_cost": 127.45,
-                "average_latency": 342.5,
-                "usage_by_day": [
-                    {
-                        "date": "2025-11-08",
-                        "requests": 1180,
-                        "cost": 11.20
-                    },
-                    {
-                        "date": "2025-11-09",
-                        "requests": 1250,
-                        "cost": 12.30
-                    }
-                ]
-            }
-        }
+        from_attributes = True
+
+
+class ProviderConfigUpdate(BaseModel):
+    """Schema for updating provider configuration."""
+    enabled: Optional[bool] = None
+    priority: Optional[int] = None
+    api_key: Optional[str] = None
+
+
+# ============================================================================
+# Cache Schemas
+# ============================================================================
+
+class CacheStats(BaseModel):
+    """Cache statistics."""
+    total_entries: int
+    total_hits: int
+    hit_rate: float
+    estimated_savings_usd: float
+
+
+class CacheClearRequest(BaseModel):
+    """Request to clear cache entries."""
+    model: Optional[str] = None
+    older_than_hours: Optional[int] = None
+
+
+# ============================================================================
+# Error Schemas
+# ============================================================================
+
+class ErrorResponse(BaseModel):
+    """Standard error response."""
+    error: str
+    message: str
+    details: Optional[Dict[str, Any]] = None

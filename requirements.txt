@@ -13,3 +13,9 @@ numpy
 apscheduler
 aiohttp
 fastapi-mail
+tiktoken
+openai
+alembic
+redis
+hiredis
+slowapi

@@ -3,14 +3,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import auth, models, predictions, drift, alert_channels, proxy, analytics
-from .database import Base, engine, apply_migrations
+from .api import auth, proxy, analytics, providers, cache, smart_routing, alerts, rate_limits
+from .database import Base, engine
 from .services.background_tasks import scheduler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    apply_migrations()
+    # Note: Run 'alembic upgrade head' to apply database migrations
     Base.metadata.create_all(bind=engine)
     scheduler.start()
     yield
@@ -18,48 +18,71 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="DriftAssure AI",
+    title="Cognitude LLM Proxy",
     description="""
-## ML Model Monitoring & Drift Detection Platform
+## LLM Proxy with Intelligent Caching & Multi-Provider Routing
 
-DriftAssure AI helps ML teams detect data drift in production models and get alerted before model performance degrades.
+Cognitude is an OpenAI-compatible LLM proxy that provides intelligent caching, multi-provider routing, and comprehensive cost analytics.
 
-### Features
+### ✨ Key Features
 
-* **Model Registration**: Register your ML models with feature definitions
-* **Prediction Logging**: Log predictions in real-time or batch
-* **Drift Detection**: Automatic KS test-based drift detection every 15 minutes
-* **Alerts**: Email and Slack notifications when drift is detected
-* **API Keys**: Secure multi-tenant authentication
+* **🔄 OpenAI Compatible**: Drop-in replacement for OpenAI SDK
+* **💾 Intelligent Caching**: 30-70% cost savings through response caching
+* **🌐 Multi-Provider**: Support for OpenAI, Anthropic, Mistral, Groq
+* **💰 Cost Tracking**: Accurate per-request cost calculation
+* **📊 Analytics**: Comprehensive usage metrics and insights
+* **🔐 Multi-Tenant**: Secure API key-based organization isolation
 
-### Quick Start
+### 🚀 Quick Start
 
-1. Register your organization: `POST /auth/register`
-2. Create a model: `POST /models/`
-3. Log predictions: `POST /predictions/models/{model_id}/predictions`
-4. Configure alerts: `POST /alert-channels/`
-5. Check drift: `GET /drift/models/{model_id}/drift/current`
+```python
+from openai import OpenAI
 
-### Authentication
+# Use Cognitude instead of OpenAI directly
+client = OpenAI(
+    api_key="your-cognitude-api-key",
+    base_url="http://your-server:8000/v1"
+)
 
-All endpoints (except `/auth/register`) require an API key in the `X-API-Key` header.
+# Same OpenAI code works!
+response = client.chat.completions.create(
+    model="gpt-3.5-turbo",
+    messages=[{"role": "user", "content": "Hello!"}]
+)
+```
+
+### 📖 API Endpoints
+
+* **Chat Completions**: `POST /v1/chat/completions` - OpenAI-compatible LLM endpoint
+* **List Models**: `GET /v1/models` - Available models based on your providers
+* **Analytics**: `GET /analytics/usage` - Usage metrics and cost breakdown
+* **Providers**: `/providers/*` - Manage LLM provider configurations
+* **Cache**: `/cache/*` - Cache management and statistics
+
+### 🔐 Authentication
+
+All endpoints require an API key in the `X-API-Key` header:
 
 ```bash
-curl -H "X-API-Key: your-api-key" https://api.driftassure.com/models/
+curl -X POST http://your-server:8000/v1/chat/completions \\
+  -H "X-API-Key: your-api-key" \\
+  -H "Content-Type: application/json" \\
+  -d '{"model": "gpt-3.5-turbo", "messages": [...]}'
 ```
     """,
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
     contact={
-        "name": "DriftAssure Support",
-        "url": "https://driftassure.com/support",
-        "email": "support@driftassure.com"
+        "name": "Cognitude Support",
+        "url": "https://cognitude.io/support",
+        "email": "support@cognitude.io"
     },
     license_info={
         "name": "MIT",
         "url": "https://opensource.org/licenses/MIT",
-    }
+    },
+    lifespan=lifespan
 )
 
 # Configure CORS for frontend
@@ -71,46 +94,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include routers
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
-app.include_router(models.router, prefix="/models", tags=["models"])
-app.include_router(predictions.router, prefix="/predictions", tags=["predictions"])
-app.include_router(drift.router, prefix="/drift", tags=["drift"])
-app.include_router(alert_channels.router, prefix="/alert-channels", tags=["alert-channels"])
-app.include_router(proxy.router, prefix="", tags=["proxy"])
-app.include_router(analytics.router, prefix="", tags=["analytics"])
+app.include_router(proxy.router)  # No prefix - uses /v1 from router
+app.include_router(providers.router)  # Uses /providers prefix from router
+app.include_router(cache.router)  # Uses /cache prefix from router
+app.include_router(analytics.router)  # Uses /analytics prefix from router
+app.include_router(smart_routing.router)  # Smart routing endpoints
+app.include_router(alerts.router)  # Alert management endpoints
+app.include_router(rate_limits.router)  # Rate limiting configuration
 
 @app.get("/")
 def read_root():
-    return {"message": "DriftAssure AI is running"}
+    return {
+        "message": "Cognitude LLM Proxy",
+        "version": "1.0.0",
+        "docs": "/docs"
+    }
 
 @app.get("/health", tags=["system"])
 def health_check():
     """
     Health check endpoint for monitoring and load balancers
     """
-    return {
-        "status": "healthy",
-        "service": "DriftAssure AI",
-        "version": "1.0.0",
-        "timestamp": "2025-11-06T00:00:00Z"
-    }
-
-@app.get("/scheduler/status", tags=["system"])
-def scheduler_status():
-    """
-    Get status of background scheduler
-    """
-    jobs = scheduler.get_jobs()
+    from .services.redis_cache import redis_cache
+    
+    redis_status = redis_cache.health_check()
     
     return {
-        "is_running": scheduler.running,
-        "job_count": len(jobs),
-        "jobs": [
-            {
-                "id": job.id,
-                "name": job.name,
-                "trigger": str(job.trigger)
-            }
-            for job in jobs
-        ]
+        "status": "healthy",
+        "service": "Cognitude LLM Proxy",
+        "version": "1.0.0",
+        "redis": redis_status
     }

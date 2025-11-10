@@ -22,12 +22,12 @@ class AlertChannelCreate(BaseModel):
     description="""
     Configure email or Slack notifications for drift alerts.
     
-    When drift is detected, DriftAssure will automatically send notifications 
+    When drift is detected, Cognitude will automatically send notifications 
     through all active channels configured for your organization.
     
     **Email Example:**
     ```bash
-    curl -X POST https://api.driftassure.com/alert-channels/ \\
+    curl -X POST https://api.cognitude.io/alert-channels/ \\
       -H "X-API-Key: your-api-key" \\
       -H "Content-Type: application/json" \\
       -d '{
@@ -38,7 +38,7 @@ class AlertChannelCreate(BaseModel):
     
     **Slack Example:**
     ```bash
-    curl -X POST https://api.driftassure.com/alert-channels/ \\
+    curl -X POST https://api.cognitude.io/alert-channels/ \\
       -H "X-API-Key: your-api-key" \\
       -H "Content-Type: application/json" \\
       -d '{
@@ -209,7 +209,7 @@ def list_alert_channels(
     
     **Example:**
     ```bash
-    curl -X DELETE https://api.driftassure.com/alert-channels/1 \\
+    curl -X DELETE https://api.cognitude.io/alert-channels/1 \\
       -H "X-API-Key: your-api-key"
     ```
     """,

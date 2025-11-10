@@ -12,7 +12,7 @@ from . import crud
 from .database import SessionLocal
 
 # Fallback salt ensures deterministic hashing if env var is unset.
-_DEFAULT_SALT: Final[bytes] = b"driftguard-static-salt"
+_DEFAULT_SALT: Final[bytes] = b"cognitude-static-salt"
 
 
 def _get_salt() -> bytes:

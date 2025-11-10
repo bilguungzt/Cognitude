@@ -26,7 +26,7 @@ export default function SetupPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const key = localStorage.getItem("driftassure_api_key") || "";
+    const key = localStorage.getItem("cognitude_api_key") || "";
     setApiKey(key);
   }, []);
 
@@ -53,7 +53,7 @@ export default function SetupPage() {
             feature_1: 100,
             feature_2: 0.5,
             feature_3: "category_a",
-            source: "driftassure_setup_page",
+            source: "cognitude_setup_page",
             test: true,
           },
           timestamp: new Date().toISOString(),
@@ -179,7 +179,7 @@ export default function SetupPage() {
   };
 
   const API_BASE_URL =
-    import.meta.env.VITE_API_URL || "https://api.driftassure.com"; // Production URL by default
+    import.meta.env.VITE_API_URL || "https://api.cognitude.com"; // Production URL by default
 
   const codeSnippets: Record<Language, { code: string; install: string }> = {
     python: {
@@ -355,7 +355,7 @@ logPrediction();`,
                   Get Your API Key
                 </h4>
                 <p className="text-sm sm:text-base text-gray-600 mb-3">
-                  Your API key authenticates all requests to DriftAssure.
+                  Your API key authenticates all requests to Cognitude.
                 </p>
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">

@@ -27,7 +27,7 @@ chmod +x deploy.sh
 **OR** manually copy the script:
 
 ```bash
-# On your local machine (from driftguard_mvp directory)
+# On your local machine (from cognitude_mvp directory)
 scp deploy-to-server.sh root@165.22.158.75:~/
 
 # On the server
@@ -66,8 +66,8 @@ sudo apt-get install git -y
 
 ```bash
 cd /root
-git clone https://github.com/bilguungzt/Drift_Guard.git driftguard_mvp
-cd driftguard_mvp
+git clone https://github.com/bilguungzt/Drift_Guard.git cognitude_mvp
+cd cognitude_mvp
 ```
 
 ### 3. Generate SSL Certificates
@@ -81,9 +81,9 @@ chmod +x generate-postgres-certs.sh
 
 ```bash
 cat > .env << 'EOF'
-POSTGRES_USER=driftguard_prod
+POSTGRES_USER=cognitude_prod
 POSTGRES_PASSWORD=your_secure_password_here
-POSTGRES_DB=driftguard_production
+POSTGRES_DB=cognitude_production
 ENVIRONMENT=production
 EOF
 ```
@@ -133,7 +133,7 @@ PYTHON
 
 ```bash
 # Create Nginx config
-sudo nano /etc/nginx/sites-available/driftguard
+sudo nano /etc/nginx/sites-available/cognitude
 ```
 
 Paste this configuration:
@@ -141,7 +141,7 @@ Paste this configuration:
 ```nginx
 server {
     listen 80;
-    server_name 165.22.158.75 api.driftguard.ai;
+    server_name 165.22.158.75 api.cognitude.io;
 
     location / {
         proxy_pass http://localhost:8000;
@@ -156,7 +156,7 @@ server {
 Enable and reload:
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/driftguard /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/cognitude /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 ```
@@ -183,8 +183,8 @@ sudo docker-compose -f docker-compose.prod.yml ps
 
 # Expected output:
 # NAME                   STATUS
-# driftguard_mvp-db-1    Up
-# driftguard_mvp-api-1   Up
+# cognitude_mvp-db-1    Up
+# cognitude_mvp-api-1   Up
 ```
 
 ### Test API
@@ -252,7 +252,7 @@ npm run build
 
 ```bash
 # Copy build to server
-scp -r dist/* root@165.22.158.75:/var/www/driftguard/
+scp -r dist/* root@165.22.158.75:/var/www/cognitude/
 
 # Or serve via Nginx (see Nginx config above)
 ```
@@ -283,7 +283,7 @@ TTL: 3600
 sudo apt-get install certbot python3-certbot-nginx -y
 
 # Generate certificates
-sudo certbot --nginx -d api.driftguard.ai -d app.driftguard.ai
+sudo certbot --nginx -d api.cognitude.io -d app.cognitude.io
 
 # Auto-renewal (already setup by certbot)
 sudo certbot renew --dry-run
@@ -312,7 +312,7 @@ sudo docker-compose -f docker-compose.prod.yml up -d
 
 ```bash
 # Check database is running
-sudo docker-compose -f docker-compose.prod.yml exec db psql -U driftguard_prod -d driftguard_production -c "SELECT 1;"
+sudo docker-compose -f docker-compose.prod.yml exec db psql -U cognitude_prod -d cognitude_production -c "SELECT 1;"
 
 # If fails, check password in .env matches docker-compose.prod.yml
 ```
@@ -355,16 +355,16 @@ sudo docker-compose -f docker-compose.prod.yml restart
 sudo docker-compose -f docker-compose.prod.yml down
 
 # Update code and restart
-cd /root/driftguard_mvp
+cd /root/cognitude_mvp
 git pull origin main
 sudo docker-compose -f docker-compose.prod.yml build
 sudo docker-compose -f docker-compose.prod.yml up -d
 
 # Backup database
-sudo docker-compose -f docker-compose.prod.yml exec db pg_dump -U driftguard_prod driftguard_production > backup_$(date +%Y%m%d).sql
+sudo docker-compose -f docker-compose.prod.yml exec db pg_dump -U cognitude_prod cognitude_production > backup_$(date +%Y%m%d).sql
 
 # Restore database
-cat backup_20251106.sql | sudo docker-compose -f docker-compose.prod.yml exec -T db psql -U driftguard_prod driftguard_production
+cat backup_20251106.sql | sudo docker-compose -f docker-compose.prod.yml exec -T db psql -U cognitude_prod cognitude_production
 ```
 
 ---

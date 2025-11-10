@@ -1,124 +1,179 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean
+"""
+SQLAlchemy ORM models for Cognitude LLM Monitoring Platform.
+
+This module defines the database schema for:
+- Multi-tenant organizations
+- LLM request logging and analytics
+- Response caching
+- Multi-provider configurations
+"""
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, Numeric, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import JSONB
 
 from .database import Base
 
+
+# ============================================================================
+# Organizations & Authentication
+# ============================================================================
+
 class Organization(Base):
+    """Multi-tenant organization model."""
     __tablename__ = "organizations"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, index=True)
-    api_key_hash = Column(String, unique=True)
-
-    models = relationship("Model", back_populates="organization")
-    alert_channels = relationship("AlertChannel", back_populates="organization")
-
-class Model(Base):
-    __tablename__ = "models"
-
-    id = Column(Integer, primary_key=True, index=True)
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
-    name = Column(String, index=True, nullable=False)
-    version = Column(String, nullable=False)
-    description = Column(String)
-    model_type = Column(String)
-    baseline_mean = Column(Float)
-    baseline_std = Column(Float)
+    name = Column(String, unique=True, index=True, nullable=False)
+    api_key_hash = Column(String, unique=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
-    )
 
-    organization = relationship("Organization", back_populates="models")
-    features = relationship(
-        "ModelFeature",
-        back_populates="model",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-    )
-    predictions = relationship("Prediction", back_populates="model")
-    drift_alerts = relationship("DriftAlert", back_populates="model")
-    drift_history = relationship("DriftHistory", back_populates="model", cascade="all, delete-orphan")
+    # Relationships
+    llm_requests = relationship("LLMRequest", back_populates="organization", cascade="all, delete-orphan")
+    provider_configs = relationship("ProviderConfig", back_populates="organization", cascade="all, delete-orphan")
+    alert_channels = relationship("AlertChannel", back_populates="organization", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<Organization(id={self.id}, name='{self.name}')>"
 
 
-class ModelFeature(Base):
-    __tablename__ = "model_features"
+# ============================================================================
+# LLM Request Logging
+# ============================================================================
 
-    id = Column(Integer, primary_key=True, index=True)
-    model_id = Column(Integer, ForeignKey("models.id", ondelete="CASCADE"), nullable=False)
-    feature_name = Column(String)
-    feature_type = Column(String)
-    order = Column(Integer)
-    baseline_stats = Column(JSONB, nullable=True)
-
-    model = relationship("Model", back_populates="features")
-
-class Prediction(Base):
-    __tablename__ = "predictions"
+class LLMRequest(Base):
+    """Logs every LLM API request for analytics and monitoring."""
+    __tablename__ = "llm_requests"
 
     id = Column(Integer, primary_key=True, index=True)
-    time = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    model_id = Column(Integer, ForeignKey("models.id", ondelete="CASCADE"), nullable=False)
-    prediction_value = Column(Float, nullable=False)
-    actual_value = Column(Float)
-    latency_ms = Column(Float)
-    features = Column(JSONB, nullable=False)
+    organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    
+    # Request details
+    model = Column(String(100), nullable=False, index=True)  # gpt-4, claude-3-opus, etc.
+    provider = Column(String(50), nullable=False, index=True)  # openai, anthropic, mistral
+    
+    # Token tracking
+    prompt_tokens = Column(Integer, nullable=False)
+    completion_tokens = Column(Integer, nullable=False)
+    total_tokens = Column(Integer, nullable=False)
+    
+    # Cost tracking
+    cost_usd = Column(Numeric(precision=10, scale=6), nullable=False)
+    
+    # Performance metrics
+    latency_ms = Column(Integer, nullable=False)
+    
+    # Caching information
+    cache_hit = Column(Boolean, server_default='false', nullable=False)
+    cache_key = Column(String(64), nullable=True, index=True)
+    
+    # Request metadata
+    endpoint = Column(String(100), nullable=True)  # /v1/chat/completions
+    status_code = Column(Integer, nullable=True)
+    error_message = Column(Text, nullable=True)
+    
+    # Relationships
+    organization = relationship("Organization", back_populates="llm_requests")
 
-    model = relationship("Model", back_populates="predictions")
+    def __repr__(self):
+        return f"<LLMRequest(id={self.id}, model='{self.model}', provider='{self.provider}', cache_hit={self.cache_hit})>"
 
-class DriftAlert(Base):
-    __tablename__ = "drift_alerts"
+
+# ============================================================================
+# LLM Response Cache
+# ============================================================================
+
+class LLMCache(Base):
+    """Caches LLM responses to reduce costs and improve latency."""
+    __tablename__ = "llm_cache"
+
+    cache_key = Column(String(64), primary_key=True)
+    prompt_hash = Column(String(64), nullable=False, index=True)
+    model = Column(String(100), nullable=False)
+    response_json = Column(JSONB, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    last_accessed = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    hit_count = Column(Integer, server_default='0', nullable=False)
+    ttl_hours = Column(Integer, server_default='24', nullable=False)
+
+    def __repr__(self):
+        return f"<LLMCache(cache_key='{self.cache_key}', model='{self.model}', hit_count={self.hit_count})>"
+
+
+# ============================================================================
+# Multi-Provider Configuration
+# ============================================================================
+
+class ProviderConfig(Base):
+    """Stores API keys and configuration for multiple LLM providers per organization."""
+    __tablename__ = "provider_configs"
 
     id = Column(Integer, primary_key=True, index=True)
-    model_id = Column(Integer, ForeignKey("models.id"))
-    alert_type = Column(String)
-    drift_score = Column(Float)
-    detected_at = Column(DateTime(timezone=True), nullable=False)
-    acknowledged_at = Column(DateTime(timezone=True), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider = Column(String(50), nullable=False, index=True)  # openai, anthropic, mistral, groq
+    api_key_encrypted = Column(Text, nullable=False)
+    enabled = Column(Boolean, server_default='true', nullable=False)
+    priority = Column(Integer, server_default='0', nullable=False)  # For routing/fallback
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    
+    # Relationships
+    organization = relationship("Organization", back_populates="provider_configs")
 
-    model = relationship("Model", back_populates="drift_alerts")
+    def __repr__(self):
+        return f"<ProviderConfig(id={self.id}, provider='{self.provider}', enabled={self.enabled})>"
 
-class DriftHistory(Base):
-    __tablename__ = "drift_history"
 
-    id = Column(Integer, primary_key=True, index=True)
-    model_id = Column(Integer, ForeignKey("models.id"), nullable=False)
-    drift_detected = Column(Boolean, nullable=False)
-    drift_score = Column(Float, nullable=False)
-    p_value = Column(Float, nullable=False)
-    samples = Column(Integer, nullable=False)
-    feature_drifts = Column(JSONB, nullable=True)  # Per-feature drift details
-    timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-    model = relationship("Model", back_populates="drift_history")
+# ============================================================================
+# Alert Channels (kept from original - for future notifications)
+# ============================================================================
 
 class AlertChannel(Base):
+    """Configuration for alert notifications (email, Slack, webhook)."""
     __tablename__ = "alert_channels"
 
     id = Column(Integer, primary_key=True, index=True)
-    organization_id = Column(Integer, ForeignKey("organizations.id"))
-    channel_type = Column(String)
-    configuration = Column(JSONB)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    channel_type = Column(String(50), nullable=False)  # email, slack, webhook
+    configuration = Column(JSONB, nullable=False)  # Stores channel-specific config
+    is_active = Column(Boolean, server_default='true', nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
+    # Relationships
     organization = relationship("Organization", back_populates="alert_channels")
 
+    def __repr__(self):
+        return f"<AlertChannel(id={self.id}, type='{self.channel_type}', active={self.is_active})>"
 
-class APILog(Base):
-    __tablename__ = "api_logs"
+
+class AlertConfig(Base):
+    """Configuration for cost threshold alerts."""
+    __tablename__ = "alert_configs"
 
     id = Column(Integer, primary_key=True, index=True)
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=False)
-    timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    provider = Column(String, nullable=False)  # e.g., "openai"
-    model = Column(String, nullable=False)  # e.g., "gpt-4"
-    prompt_tokens = Column(Integer, default=0)  # number of prompt tokens used
-    completion_tokens = Column(Integer, default=0)  # number of completion tokens used
-    total_cost = Column(Float, default=0.0)  # cost in USD
-    latency_ms = Column(Float)  # response time in milliseconds
+    organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    alert_type = Column(String(50), nullable=False)  # daily_cost, weekly_cost, monthly_cost, spike
+    threshold_usd = Column(Numeric(10, 2), nullable=False)  # Alert when cost exceeds this
+    enabled = Column(Boolean, server_default='true', nullable=False)
+    last_triggered = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    organization = relationship("Organization")
+    def __repr__(self):
+        return f"<AlertConfig(id={self.id}, type='{self.alert_type}', threshold=${self.threshold_usd})>"
+
+
+class RateLimitConfig(Base):
+    """Rate limiting configuration per organization."""
+    __tablename__ = "rate_limit_configs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True, unique=True)
+    requests_per_minute = Column(Integer, server_default='100', nullable=False)  # Default: 100 req/min
+    requests_per_hour = Column(Integer, server_default='3000', nullable=False)  # Default: 3000 req/hour
+    requests_per_day = Column(Integer, server_default='50000', nullable=False)  # Default: 50k req/day
+    enabled = Column(Boolean, server_default='true', nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    def __repr__(self):
+        return f"<RateLimitConfig(org_id={self.organization_id}, minute={self.requests_per_minute}, hour={self.requests_per_hour})>"

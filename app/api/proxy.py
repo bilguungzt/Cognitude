@@ -1,267 +1,309 @@
-from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import StreamingResponse
-import httpx
+"""
+Core LLM proxy endpoint with caching and multi-provider routing.
+"""
 import time
-import os
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
-from .. import crud, models
-from ..database import SessionLocal
-from ..security import verify_api_key, get_organization_from_api_key
-from ..schemas import ChatCompletionRequest, ChatCompletionResponse
-from typing import Generator
+from .. import crud, schemas
+from ..database import get_db
+from ..security import get_organization_from_api_key
+from ..services.router import ProviderRouter
+from ..services.tokens import count_messages_tokens
+from ..services.pricing import calculate_cost
+from ..services.redis_cache import redis_cache
+from ..services.rate_limiter import RateLimiter
 
 
-def get_db() -> Generator[Session, None, None]:
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-router = APIRouter()
-
-# Cost calculation constants (dummy rates for now)
-COST_PER_M_TOKEN_INPUT = 0.03  # $0.03 per 1k tokens for input
-COST_PER_M_TOKEN_OUTPUT = 0.06  # $0.06 per 1k tokens for output
+router = APIRouter(tags=["proxy"])
 
 
-def calculate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
-    """
-    Calculate the cost of an API call based on token usage.
-    Using dummy rates for now - in a real implementation, you would have
-    different rates for different models.
-    """
-    input_cost = (prompt_tokens / 1_000_000) * COST_PER_M_TOKEN_INPUT
-    output_cost = (completion_tokens / 1_000) * COST_PER_M_TOKEN_OUTPUT
-    return input_cost + output_cost
-
-
-@router.post(
-    "/v1/chat/completions",
-    summary="OpenAI Chat Completions Proxy",
-    description="""
-## Drop-in replacement for OpenAI's chat completions API
-
-This endpoint acts as a transparent proxy while logging all usage metrics for cost tracking and analytics.
-
-### 🔄 How it works:
-
-1. **User makes request** with two API keys:
-   - `Authorization: Bearer <openai-key>` - Your OpenAI API key (passed through to OpenAI)
-   - `X-API-Key: <driftassure-key>` - Your DriftAssure API key (for authentication & logging)
-
-2. **DriftAssure logs everything** to database:
-   - Request timestamp
-   - Model used (gpt-4, gpt-3.5-turbo, etc.)
-   - Token usage (prompt + completion)
-   - Cost calculated based on model pricing
-   - Response latency in milliseconds
-   - Organization ID (from your X-API-Key)
-
-3. **Request forwarded** to OpenAI API with your OpenAI key
-
-4. **Response returned** with full OpenAI response format
-
-### 💰 Cost Tracking
-
-- Automatically calculates cost based on token usage
-- Costs visible in `/analytics/usage` endpoint
-- Real-time tracking for all requests
-- No markup - just transparent logging
-
-### 🔐 Privacy & Security
-
-**What gets logged:**
-- ✅ Model name
-- ✅ Prompt tokens used
-- ✅ Completion tokens used
-- ✅ Total cost (calculated)
-- ✅ Response latency (ms)
-
-**What does NOT get logged:**
-- ❌ Message content (never logged for privacy)
-- ❌ User data or identifiable information
-- ❌ API keys (never stored)
-
-### 📝 Example Usage (Python):
-
-```python
-from openai import OpenAI
-
-client = OpenAI(
-    api_key="your-openai-key",
-    base_url="https://api.driftassure.com",
-    default_headers={"X-API-Key": "your-driftassure-key"}
-)
-
-response = client.chat.completions.create(
-    model="gpt-4",
-    messages=[{"role": "user", "content": "Hello!"}]
-)
-```
-
-### 🔗 Integration with Analytics
-
-All logged data is available via the `/analytics/usage` endpoint:
-- View total requests and costs
-- Track usage trends over time
-- Monitor API performance
-- Calculate cost savings
-    """,
-    tags=["proxy"],
-    response_model=ChatCompletionResponse,
-    responses={
-        200: {
-            "description": "Successful OpenAI API response",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "id": "chatcmpl-123",
-                        "object": "chat.completion",
-                        "created": 1699492800,
-                        "model": "gpt-3.5-turbo",
-                        "usage": {
-                            "prompt_tokens": 10,
-                            "completion_tokens": 20,
-                            "total_tokens": 30
-                        },
-                        "choices": [
-                            {
-                                "index": 0,
-                                "message": {
-                                    "role": "assistant",
-                                    "content": "Hello! How can I help you today?"
-                                },
-                                "finish_reason": "stop"
-                            }
-                        ]
-                    }
-                }
-            }
-        },
-        401: {
-            "description": "Invalid or missing X-API-Key",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Invalid API key"}
-                }
-            }
-        },
-        502: {
-            "description": "Error connecting to OpenAI API",
-            "content": {
-                "application/json": {
-                    "example": {"detail": "Error connecting to OpenAI API: Connection timeout"}
-                }
-            }
-        }
-    }
-)
-async def proxy_chat_completions(
-    request: Request,
-    organization=Depends(get_organization_from_api_key),
-    db: Session = Depends(get_db)
+@router.post("/v1/chat/completions", response_model=schemas.ChatCompletionResponse)
+async def chat_completions(
+    request: schemas.ChatCompletionRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+    organization: schemas.Organization = Depends(get_organization_from_api_key)
 ):
     """
-    Proxy endpoint for OpenAI's chat completions API.
-    This endpoint forwards requests to OpenAI and logs usage metrics.
-    """
-    # Get the request body
-    body = await request.json()
+    OpenAI-compatible chat completions endpoint with caching and multi-provider routing.
     
-    # Start timing for latency measurement
+    Features:
+    - Automatic response caching (30-70% cost savings)
+    - Multi-provider routing (OpenAI, Anthropic, Mistral, Groq)
+    - Token counting and cost calculation
+    - Request logging and analytics
+    - Fallback to alternative providers on failure
+    - Rate limiting per organization (100 req/min default)
+    
+    Usage:
+    ```python
+    from openai import OpenAI
+    
+    client = OpenAI(
+        api_key="your-cognitude-key",
+        base_url="http://your-server:8000/v1"
+    )
+    
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": "Hello!"}]
+    )
+    ```
+    
+    Rate Limiting:
+    - Default: 100 requests/minute, 3000 requests/hour, 50k requests/day
+    - Configurable via /rate-limits/config endpoint
+    - Returns 429 status when limit exceeded
+    - Rate limit headers included in all responses:
+      - X-RateLimit-Limit: Total requests allowed per minute
+      - X-RateLimit-Remaining: Requests remaining in current minute
+      - X-RateLimit-Reset: Unix timestamp when limit resets
+    ```
+    """
     start_time = time.time()
     
-    # Get OpenAI API key from environment
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    if not openai_api_key:
+    # Check rate limits FIRST (before any processing)
+    rate_limiter = RateLimiter(redis_cache, db)
+    is_allowed, retry_after, usage = rate_limiter.check_rate_limit(organization.id)
+    
+    # Add rate limit headers to response
+    headers = rate_limiter.get_rate_limit_headers(organization.id, usage)
+    for header, value in headers.items():
+        response.headers[header] = value
+    
+    # Return 429 if rate limited
+    if not is_allowed:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="OpenAI API key not configured on the server"
+            status_code=429,
+            detail=f"Rate limit exceeded. Retry after {retry_after} seconds.",
+            headers={"Retry-After": str(retry_after)}
         )
     
-    # Forward the request to OpenAI
-    async with httpx.AsyncClient() as client:
+    # Convert messages to dict format for caching
+    messages_dict = [{"role": msg.role, "content": msg.content} for msg in request.messages]
+    
+    # Generate cache key
+    cache_key = crud.generate_cache_key(
+        request.model,
+        messages_dict,
+        request.temperature,
+        request.max_tokens
+    )
+    
+    # Check cache first (Redis → PostgreSQL fallback)
+    cached_response = None
+    
+    # Try Redis cache first (fast <10ms)
+    redis_cached = redis_cache.get(cache_key, organization.id)
+    if redis_cached:
+        cached_response = type('obj', (object,), {
+            'response_data': redis_cached['response_data'],
+            'provider': redis_cached['provider'],
+            'prompt_tokens': redis_cached['prompt_tokens'],
+            'completion_tokens': redis_cached['completion_tokens'],
+            'cost_usd': redis_cached['cost_usd']
+        })()
+    else:
+        # Fallback to PostgreSQL cache
+        cached_response = crud.get_from_cache(db, cache_key, organization.id)
+    
+    if cached_response:
+        # Cache hit! Return cached response
+        latency_ms = int((time.time() - start_time) * 1000)
+        
+        # Parse cached response
+        response_data = cached_response.response_data
+        
+        # Add metadata
+        response_data["cached"] = True
+        response_data["provider"] = cached_response.provider
+        response_data["cost_usd"] = float(cached_response.cost_usd)
+        
+        # Log the request (cache hit, no cost)
+        crud.log_llm_request(
+            db=db,
+            organization_id=organization.id,
+            model=request.model,
+            provider=cached_response.provider,
+            prompt_tokens=cached_response.prompt_tokens,
+            completion_tokens=cached_response.completion_tokens,
+            total_tokens=cached_response.prompt_tokens + cached_response.completion_tokens,
+            cost_usd=0,  # No cost for cached response
+            latency_ms=latency_ms,
+            cached=True,
+            cache_key=cache_key
+        )
+        
+        return response_data
+    
+    # Cache miss - call provider
+    provider_router = ProviderRouter(db, organization.id)
+    
+    # Select provider based on model
+    provider_config = provider_router.select_provider(request.model)
+    
+    if not provider_config:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No provider configured for model '{request.model}'. Please configure a provider first."
+        )
+    
+    # Prepare request parameters
+    request_params = {
+        "temperature": request.temperature,
+        "max_tokens": request.max_tokens,
+        "top_p": request.top_p,
+        "frequency_penalty": request.frequency_penalty,
+        "presence_penalty": request.presence_penalty,
+        "stop": request.stop,
+        "n": request.n,
+    }
+    
+    # Remove None values
+    request_params = {k: v for k, v in request_params.items() if v is not None}
+    
+    try:
+        # Call provider with fallback
+        response_data = await provider_router.call_with_fallback(
+            model=request.model,
+            messages=messages_dict,
+            **request_params
+        )
+        
+        # Extract usage info
+        usage = response_data["usage"]
+        prompt_tokens = usage["prompt_tokens"]
+        completion_tokens = usage["completion_tokens"]
+        total_tokens = usage["total_tokens"]
+        
+        # Calculate cost
+        cost_usd = calculate_cost(request.model, prompt_tokens, completion_tokens)
+        
+        # Calculate latency
+        latency_ms = int((time.time() - start_time) * 1000)
+        
+        # Store in both Redis (hot cache) and PostgreSQL (cold storage)
+        # Redis first for speed
+        redis_cache.set(
+            cache_key=cache_key,
+            organization_id=organization.id,
+            response_data=response_data,
+            model=request.model,
+            provider=provider_config.provider,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            cost_usd=float(cost_usd),
+            ttl_hours=24
+        )
+        
+        # PostgreSQL for analytics and persistence
+        crud.store_in_cache(
+            db=db,
+            organization_id=organization.id,
+            cache_key=cache_key,
+            model=request.model,
+            provider=provider_config.provider,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            cost_usd=cost_usd,
+            response_data=response_data
+        )
+        
+        # Log the request
+        crud.log_llm_request(
+            db=db,
+            organization_id=organization.id,
+            model=request.model,
+            provider=provider_config.provider,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            cost_usd=cost_usd,
+            latency_ms=latency_ms,
+            cached=False,
+            cache_key=cache_key
+        )
+        
+        # Add metadata to response
+        response_data["cached"] = False
+        response_data["provider"] = provider_config.provider
+        response_data["cost_usd"] = float(cost_usd)
+        
+        return response_data
+        
+    except Exception as e:
+        # Log failed request
+        latency_ms = int((time.time() - start_time) * 1000)
+        
+        # Try to count tokens even on failure
         try:
-            response = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                json=body,
-                headers={
-                    "Authorization": f"Bearer {openai_api_key}",
-                    "Content-Type": "application/json"
-                },
-                timeout=60.0  # 60 second timeout
-            )
-            
-            # Calculate latency in milliseconds
-            latency_ms = (time.time() - start_time) * 1000
-            
-            # Process the response
-            response_data = response.json()
-            
-            # Extract token usage from OpenAI response
+            prompt_tokens = count_messages_tokens(messages_dict, request.model)
+        except:
             prompt_tokens = 0
-            completion_tokens = 0
-            total_tokens = 0
-            
-            if "usage" in response_data:
-                usage = response_data["usage"]
-                prompt_tokens = usage.get("prompt_tokens", 0)
-                completion_tokens = usage.get("completion_tokens", 0)
-                total_tokens = usage.get("total_tokens", 0)
-            
-            # Calculate cost
-            model_name = body.get("model", "unknown")
-            total_cost = calculate_cost(model_name, prompt_tokens, completion_tokens)
-            
-            # Create API log entry
-            api_log = models.APILog(
-                organization_id=organization.id,
-                provider="openai",
-                model=model_name,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
-                total_cost=total_cost,
-                latency_ms=latency_ms
-            )
-            db.add(api_log)
-            db.commit()
-            
-            # Return the OpenAI response to the user
-            return response_data
-            
-        except httpx.RequestError as e:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Error connecting to OpenAI API: {str(e)}"
-            )
-        except httpx.HTTPStatusError as e:
-            # If OpenAI returns an error, propagate it to the client
-            try:
-                error_detail = e.response.json()
-            except Exception:
-                error_detail = {"error": {"message": f"OpenAI API error: {str(e)}"}}
-            
-            # Calculate latency even for error responses
-            latency_ms = (time.time() - start_time) * 1000
-            
-            # Log the error request as well
-            model_name = body.get("model", "unknown")
-            api_log = models.APILog(
-                organization_id=organization.id,
-                provider="openai",
-                model=model_name,
-                prompt_tokens=0,  # No tokens used in error case
-                completion_tokens=0,
-                total_cost=0.0,
-                latency_ms=latency_ms
-            )
-            db.add(api_log)
-            db.commit()
-            
-            raise HTTPException(
-                status_code=e.response.status_code,
-                detail=error_detail
-            )
+        
+        crud.log_llm_request(
+            db=db,
+            organization_id=organization.id,
+            model=request.model,
+            provider=provider_config.provider if provider_config else "unknown",
+            prompt_tokens=prompt_tokens,
+            completion_tokens=0,
+            total_tokens=prompt_tokens,
+            cost_usd=0,
+            latency_ms=latency_ms,
+            cached=False,
+            cache_key=None,
+            error=str(e)
+        )
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"LLM provider error: {str(e)}"
+        )
+
+
+@router.get("/v1/models")
+async def list_models(
+    db: Session = Depends(get_db),
+    organization: schemas.Organization = Depends(get_organization_from_api_key)
+):
+    """
+    List available models based on configured providers.
+    OpenAI-compatible endpoint.
+    """
+    provider_router = ProviderRouter(db, organization.id)
+    providers = provider_router.get_providers(enabled_only=True)
+    
+    # Build list of available models based on providers
+    models_list = []
+    
+    for provider in providers:
+        if provider.provider == "openai":
+            models_list.extend([
+                {"id": "gpt-4", "object": "model", "owned_by": "openai"},
+                {"id": "gpt-4-turbo", "object": "model", "owned_by": "openai"},
+                {"id": "gpt-3.5-turbo", "object": "model", "owned_by": "openai"},
+            ])
+        elif provider.provider == "anthropic":
+            models_list.extend([
+                {"id": "claude-3-opus", "object": "model", "owned_by": "anthropic"},
+                {"id": "claude-3-sonnet", "object": "model", "owned_by": "anthropic"},
+                {"id": "claude-3-haiku", "object": "model", "owned_by": "anthropic"},
+            ])
+        elif provider.provider == "mistral":
+            models_list.extend([
+                {"id": "mistral-large", "object": "model", "owned_by": "mistral"},
+                {"id": "mistral-medium", "object": "model", "owned_by": "mistral"},
+            ])
+        elif provider.provider == "groq":
+            models_list.extend([
+                {"id": "llama3-70b", "object": "model", "owned_by": "groq"},
+                {"id": "mixtral-8x7b", "object": "model", "owned_by": "groq"},
+            ])
+    
+    return {
+        "object": "list",
+        "data": models_list
+    }

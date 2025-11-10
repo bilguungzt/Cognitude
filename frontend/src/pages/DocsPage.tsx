@@ -61,7 +61,7 @@ export default function DocsPage() {
                   Test endpoints interactively with the Swagger UI interface.
                 </p>
                 <a
-                  href="https://api.driftassure.com/docs"
+                  href="https://api.cognitude.com/docs"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm text-blue-600 hover:text-blue-800 font-medium inline-flex items-center gap-1"
@@ -97,9 +97,9 @@ export default function DocsPage() {
               style={{ height: "800px" }}
             >
               <iframe
-                src="https://api.driftassure.com/redoc"
+                src="https://api.cognitude.com/redoc"
                 className="w-full h-full border-0"
-                title="DriftAssure API Documentation"
+                title="Cognitude API Documentation"
               />
             </div>
           </div>

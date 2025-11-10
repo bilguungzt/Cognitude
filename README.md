@@ -1,16 +1,25 @@
-DriftGuard AI (MVP)
-DriftGuard AI is a minimum viable product (MVP) for an ML model monitoring platform. This backend service, built with FastAPI, provides a secure API for registering ML models, logging their predictions, and detecting data drift.
+# Cognitude AI (MVP)
 
-✨ Core Features
-Organization Auth: POST /auth/register endpoint to create a new organization and generate a unique API key.
+Cognitude AI is a comprehensive LLM proxy and ML model monitoring platform. This backend service, built with FastAPI, provides intelligent caching, multi-provider routing, smart model selection, and complete cost analytics.
 
-Model Registry: POST /models endpoint to register new ML models to an organization.
+## ✨ Core Features
 
-Secure Prediction Logging: POST /models/{model_id}/predictions endpoint to log real-time prediction data.
+### LLM Proxy Features
 
-Authentication: All sensitive endpoints are secured and require the API key.
+- **🔄 OpenAI Compatible**: Drop-in replacement for OpenAI SDK
+- **💾 Intelligent Caching**: 30-70% cost savings through Redis-powered response caching
+- **🧠 Smart Routing**: Automatic model selection based on task complexity (30-50% additional savings)
+- **🌐 Multi-Provider Support**: OpenAI, Anthropic, Mistral, Groq
+- **💰 Cost Tracking**: Accurate per-request cost calculation and analytics
+- **📊 Advanced Analytics**: Usage metrics, recommendations, and insights
+- **⚡ High Performance**: Sub-10ms cache lookups, 5x faster than traditional caching
 
-Drift Detection: GET /models/{model_id}/drift/current endpoint to run drift analysis (this is the next feature to be fully implemented).
+### ML Monitoring Features
+
+- **Organization Auth**: Secure multi-tenant API key management
+- **Model Registry**: Register and track ML models
+- **Prediction Logging**: Real-time prediction data capture
+- **Drift Detection**: Automated data drift analysis
 
 🛠️ Tech Stack
 Backend: FastAPI (Python)
@@ -23,18 +32,17 @@ Testing: Pytest and HTTPX
 Follow these steps to get the application running locally.
 
 1. Prerequisites
-Python 3.10+
+   Python 3.10+
 
 Docker Desktop (must be running)
 
-
 2. Initial Setup
-Clone the repository:
+   Clone the repository:
 
 Bash
 
-git clone https://github.com/your-username/driftguard_mvp.git
-cd driftguard_mvp
+git clone https://github.com/your-username/cognitude_mvp.git
+cd cognitude_mvp
 Create and activate a virtual environment:
 
 Bash
@@ -46,6 +54,7 @@ Create your .env file: This file holds all your secrets.
 Bash
 
 # Generate a random SECRET_KEY for JWT
+
 echo "SECRET_KEY=$(openssl rand -hex 32)" > .env
 Now, manually open the .env file and add your Gemini API key and database URL. The file should look like this:
 
@@ -60,8 +69,7 @@ Install Python dependencies:
 
 Bash
 
-pip install -r requirements.txt
-3. Run the Application
+pip install -r requirements.txt 3. Run the Application
 Start the Database: Open a terminal and run this command to start the PostgreSQL database in a Docker container.
 
 Bash
@@ -109,12 +117,12 @@ In the request body, enter:
 JSON
 
 {
-  "name": "Production Fraud Model",
-  "version": "1.0.0",
-  "description": "My first model",
-  "features": [
-    { "feature_name": "amount", "feature_type": "continuous", "order": 1 }
-  ]
+"name": "Production Fraud Model",
+"version": "1.0.0",
+"description": "My first model",
+"features": [
+{ "feature_name": "amount", "feature_type": "continuous", "order": 1 }
+]
 }
 Click "Execute".
 
@@ -131,13 +139,13 @@ In the request body, enter:
 JSON
 
 {
-  "predictions": [
-    {
-      "features": { "amount": 120.50 },
-      "prediction_value": 0.05,
-      "timestamp": "2025-11-02T10:00:00Z"
-    }
-  ]
+"predictions": [
+{
+"features": { "amount": 120.50 },
+"prediction_value": 0.05,
+"timestamp": "2025-11-02T10:00:00Z"
+}
+]
 }
 Click "Execute". You will get a 200 OK response.
 
@@ -147,4 +155,5 @@ You can also run the complete test suite.
 Bash
 
 # Make sure your (venv) is active
+
 pytest

@@ -161,7 +161,7 @@ export default function DashboardPage() {
                 </svg>
               </div>
               <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                DriftAssure AI
+                Cognitude AI
               </h1>
             </div>
 

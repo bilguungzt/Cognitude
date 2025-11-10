@@ -17,6 +17,16 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
+
+def get_db():
+    """Dependency to get database session."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
 def apply_migrations() -> None:
 	"""Perform lightweight schema migrations for deployments without Alembic."""
 	with engine.begin() as connection:

@@ -16,11 +16,11 @@ router = APIRouter()
     description="""
     Register a new ML model for drift monitoring.
     
-    Define your model's features so DriftAssure can track drift per-feature.
+    Define your model's features so Cognitude can track drift per-feature.
     
     **Example:**
     ```bash
-    curl -X POST https://api.driftassure.com/models/ \\
+    curl -X POST https://api.cognitude.io/models/ \\
       -H "X-API-Key: your-api-key" \\
       -H "Content-Type: application/json" \\
       -d '{
@@ -176,7 +176,7 @@ def get_model_by_id(
     
     **Example:**
     ```bash
-    curl -X PUT https://api.driftassure.com/models/1/features/1 \\
+    curl -X PUT https://api.cognitude.io/models/1/features/1 \\
       -H "X-API-Key: your-api-key" \\
       -H "Content-Type: application/json" \\
       -d '{

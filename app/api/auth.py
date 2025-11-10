@@ -22,7 +22,7 @@ router = APIRouter()
     
     **Example:**
     ```bash
-    curl -X POST https://api.driftassure.com/auth/register \\
+    curl -X POST https://api.cognitude.io/auth/register \\
       -H "Content-Type: application/json" \\
       -d '{"name": "Acme Corp"}'
     ```
