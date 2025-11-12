@@ -60,3 +60,4 @@ ollama/
 
 # Project specific
 .aider*
+frontend/

@@ -7,76 +7,43 @@ from datetime import datetime
 import logging
 
 from sqlalchemy.orm import Session
-from . import models
-from .database import SessionLocal
-from .services.drift_detection import DriftDetectionService
+from app.database import SessionLocal
+from app.api.public_benchmarks import generate_benchmarks
 
 logger = logging.getLogger(__name__)
 
 
-class DriftDetectionScheduler:
-    """Scheduler for automatic drift detection"""
+class BenchmarkScheduler:
+    """Scheduler for background jobs"""
     
     def __init__(self):
         self.scheduler = BackgroundScheduler()
         self.is_running = False
         
-    def check_all_models_for_drift(self):
-        """
-        Run drift detection for all registered models
-        This function is called periodically by the scheduler
-        """
+    def run_benchmark_generation(self):
+        """Generates and caches the public benchmarks."""
         db: Session = SessionLocal()
-        
         try:
-            # Get all models
-            models_list = db.query(models.Model).all()
-            
-            logger.info(f"Running scheduled drift check for {len(models_list)} models")
-            
-            for model in models_list:
-                try:
-                    # Run drift detection for this model
-                    drift_service = DriftDetectionService(db)
-                    model_id = int(model.id)  # type: ignore
-                    result = drift_service.calculate_ks_test_drift(model_id=model_id)
-                    
-                    if result:
-                        status = "DRIFT DETECTED" if result.get('drift_detected') else "OK"
-                        logger.info(
-                            f"Model {model.id} ({model.name}): {status} "
-                            f"[score: {result.get('drift_score', 0):.3f}, "
-                            f"p-value: {result.get('p_value', 1):.4f}]"
-                        )
-                    else:
-                        logger.debug(f"Model {model.id} ({model.name}): Insufficient data for drift check")
-                        
-                except Exception as e:
-                    logger.error(f"Error checking drift for model {model.id}: {str(e)}")
-                    continue
-                    
+            logger.info("Running scheduled public benchmark generation.")
+            generate_benchmarks(db)
+            logger.info("Successfully generated and cached public benchmarks.")
         except Exception as e:
-            logger.error(f"Error in scheduled drift check: {str(e)}")
+            logger.error(f"Error in scheduled benchmark generation: {str(e)}")
         finally:
             db.close()
-    
-    def start(self, interval_minutes: int = 15):
-        """
-        Start the background scheduler
-        
-        Args:
-            interval_minutes: How often to run drift detection (default: 15 minutes)
-        """
+
+    def start(self):
+        """Start the background scheduler"""
         if self.is_running:
             logger.warning("Scheduler is already running")
             return
         
-        # Add the job to run periodically
+        # Add the public benchmarks job
         self.scheduler.add_job(
-            func=self.check_all_models_for_drift,
-            trigger=IntervalTrigger(minutes=interval_minutes),
-            id='drift_detection_job',
-            name='Drift Detection Check',
+            func=self.run_benchmark_generation,
+            trigger=IntervalTrigger(minutes=15),
+            id='public_benchmarks_job',
+            name='Public Benchmarks Generation',
             replace_existing=True
         )
         
@@ -84,20 +51,14 @@ class DriftDetectionScheduler:
         self.scheduler.start()
         self.is_running = True
         
-        logger.info(f"✅ Drift detection scheduler started (runs every {interval_minutes} minutes)")
-        logger.info(f"   Next run scheduled for: {datetime.now()}")
+        logger.info(f"✅ Benchmark scheduler started (runs every 15 minutes)")
         
     def stop(self):
         """Stop the background scheduler"""
         if self.is_running:
             self.scheduler.shutdown()
             self.is_running = False
-            logger.info("Drift detection scheduler stopped")
-    
-    def run_now(self):
-        """Manually trigger a drift check immediately"""
-        logger.info("Manual drift check triggered")
-        self.check_all_models_for_drift()
+            logger.info("Benchmark scheduler stopped")
     
     def get_status(self):
         """Get scheduler status information"""
@@ -117,4 +78,4 @@ class DriftDetectionScheduler:
 
 
 # Global scheduler instance
-scheduler = DriftDetectionScheduler()
+scheduler = BenchmarkScheduler()

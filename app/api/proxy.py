@@ -3,10 +3,11 @@ Core LLM proxy endpoint with caching and multi-provider routing.
 """
 import time
 from typing import Optional
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
-from .. import crud, schemas
+from .. import crud, schemas, models
 from ..database import get_db
 from ..security import get_organization_from_api_key
 from ..services.router import ProviderRouter
@@ -14,6 +15,7 @@ from ..services.tokens import count_messages_tokens
 from ..services.pricing import calculate_cost
 from ..services.redis_cache import redis_cache
 from ..services.rate_limiter import RateLimiter
+from ..core.autopilot import AutopilotEngine
 
 
 router = APIRouter(tags=["proxy"])
@@ -81,187 +83,49 @@ async def chat_completions(
             headers={"Retry-After": str(retry_after)}
         )
     
-    # Convert messages to dict format for caching
-    messages_dict = [{"role": msg.role, "content": msg.content} for msg in request.messages]
-    
-    # Generate cache key
-    cache_key = crud.generate_cache_key(
-        request.model,
-        messages_dict,
-        request.temperature,
-        request.max_tokens
-    )
-    
-    # Check cache first (Redis → PostgreSQL fallback)
-    cached_response = None
-    
-    # Try Redis cache first (fast <10ms)
-    redis_cached = redis_cache.get(cache_key, organization.id)
-    if redis_cached:
-        cached_response = type('obj', (object,), {
-            'response_data': redis_cached['response_data'],
-            'provider': redis_cached['provider'],
-            'prompt_tokens': redis_cached['prompt_tokens'],
-            'completion_tokens': redis_cached['completion_tokens'],
-            'cost_usd': redis_cached['cost_usd']
-        })()
-    else:
-        # Fallback to PostgreSQL cache
-        cached_response = crud.get_from_cache(db, cache_key, organization.id)
-    
-    if cached_response:
-        # Cache hit! Return cached response
-        latency_ms = int((time.time() - start_time) * 1000)
-        
-        # Parse cached response
-        response_data = cached_response.response_data
-        
-        # Add metadata
-        response_data["cached"] = True
-        response_data["provider"] = cached_response.provider
-        response_data["cost_usd"] = float(cached_response.cost_usd)
-        
-        # Log the request (cache hit, no cost)
-        crud.log_llm_request(
-            db=db,
-            organization_id=organization.id,
-            model=request.model,
-            provider=cached_response.provider,
-            prompt_tokens=cached_response.prompt_tokens,
-            completion_tokens=cached_response.completion_tokens,
-            total_tokens=cached_response.prompt_tokens + cached_response.completion_tokens,
-            cost_usd=0,  # No cost for cached response
-            latency_ms=latency_ms,
-            cached=True,
-            cache_key=cache_key
-        )
-        
-        return response_data
-    
-    # Cache miss - call provider
+    # Instantiate Autopilot Engine
+    autopilot = AutopilotEngine(db, redis_cache)
+
+    # Get OpenAI API key
     provider_router = ProviderRouter(db, organization.id)
+    openai_provider = provider_router.select_provider("gpt-4")
+    if not openai_provider:
+        raise HTTPException(status_code=400, detail="OpenAI provider not configured.")
     
-    # Select provider based on model
-    provider_config = provider_router.select_provider(request.model)
+    openai_api_key = openai_provider.api_key_encrypted
+
+    # Process request through Autopilot
+    org_model = db.query(models.Organization).filter(models.Organization.id == organization.id).first()
+    if not org_model:
+        raise HTTPException(status_code=404, detail="Organization not found.")
+    result = await autopilot.process_request(request, org_model, openai_api_key)
+
+    # Extract response and metadata
+    response_data = result['response']
+    autopilot_metadata = result['autopilot_metadata']
+
+    # Log the request
+    latency_ms = int((time.time() - start_time) * 1000)
+    usage = response_data.usage
     
-    if not provider_config:
-        raise HTTPException(
-            status_code=400,
-            detail=f"No provider configured for model '{request.model}'. Please configure a provider first."
-        )
-    
-    # Prepare request parameters
-    request_params = {
-        "temperature": request.temperature,
-        "max_tokens": request.max_tokens,
-        "top_p": request.top_p,
-        "frequency_penalty": request.frequency_penalty,
-        "presence_penalty": request.presence_penalty,
-        "stop": request.stop,
-        "n": request.n,
+    crud.log_llm_request(
+        db=db,
+        organization_id=organization.id,
+        model=request.model,
+        provider=autopilot_metadata.get('selected_model', request.model),
+        prompt_tokens=usage.prompt_tokens,
+        completion_tokens=usage.completion_tokens,
+        cost_usd=Decimal(0), # Will be updated later
+        latency_ms=latency_ms,
+        cache_hit=autopilot_metadata.get('routing_reason') == 'cache_hit',
+        cache_key=None, # Will be updated later
+    )
+
+    # Return response with metadata
+    return {
+        **response_data.model_dump(),
+        "x-cognitude": autopilot_metadata
     }
-    
-    # Remove None values
-    request_params = {k: v for k, v in request_params.items() if v is not None}
-    
-    try:
-        # Call provider with fallback
-        response_data = await provider_router.call_with_fallback(
-            model=request.model,
-            messages=messages_dict,
-            **request_params
-        )
-        
-        # Extract usage info
-        usage = response_data["usage"]
-        prompt_tokens = usage["prompt_tokens"]
-        completion_tokens = usage["completion_tokens"]
-        total_tokens = usage["total_tokens"]
-        
-        # Calculate cost
-        cost_usd = calculate_cost(request.model, prompt_tokens, completion_tokens)
-        
-        # Calculate latency
-        latency_ms = int((time.time() - start_time) * 1000)
-        
-        # Store in both Redis (hot cache) and PostgreSQL (cold storage)
-        # Redis first for speed
-        redis_cache.set(
-            cache_key=cache_key,
-            organization_id=organization.id,
-            response_data=response_data,
-            model=request.model,
-            provider=provider_config.provider,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            cost_usd=float(cost_usd),
-            ttl_hours=24
-        )
-        
-        # PostgreSQL for analytics and persistence
-        crud.store_in_cache(
-            db=db,
-            organization_id=organization.id,
-            cache_key=cache_key,
-            model=request.model,
-            provider=provider_config.provider,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            cost_usd=cost_usd,
-            response_data=response_data
-        )
-        
-        # Log the request
-        crud.log_llm_request(
-            db=db,
-            organization_id=organization.id,
-            model=request.model,
-            provider=provider_config.provider,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            total_tokens=total_tokens,
-            cost_usd=cost_usd,
-            latency_ms=latency_ms,
-            cached=False,
-            cache_key=cache_key
-        )
-        
-        # Add metadata to response
-        response_data["cached"] = False
-        response_data["provider"] = provider_config.provider
-        response_data["cost_usd"] = float(cost_usd)
-        
-        return response_data
-        
-    except Exception as e:
-        # Log failed request
-        latency_ms = int((time.time() - start_time) * 1000)
-        
-        # Try to count tokens even on failure
-        try:
-            prompt_tokens = count_messages_tokens(messages_dict, request.model)
-        except:
-            prompt_tokens = 0
-        
-        crud.log_llm_request(
-            db=db,
-            organization_id=organization.id,
-            model=request.model,
-            provider=provider_config.provider if provider_config else "unknown",
-            prompt_tokens=prompt_tokens,
-            completion_tokens=0,
-            total_tokens=prompt_tokens,
-            cost_usd=0,
-            latency_ms=latency_ms,
-            cached=False,
-            cache_key=None,
-            error=str(e)
-        )
-        
-        raise HTTPException(
-            status_code=500,
-            detail=f"LLM provider error: {str(e)}"
-        )
 
 
 @router.get("/v1/models")

@@ -7,7 +7,7 @@ This module defines the database schema for:
 - Response caching
 - Multi-provider configurations
 """
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, Numeric, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, Numeric, Text, BigInteger
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import JSONB
@@ -177,3 +177,66 @@ class RateLimitConfig(Base):
 
     def __repr__(self):
         return f"<RateLimitConfig(org_id={self.organization_id}, minute={self.requests_per_minute}, hour={self.requests_per_hour})>"
+
+# ============================================================================
+# Autopilot Engine Logging
+# ============================================================================
+
+class AutopilotLog(Base):
+    """Logs the decision-making process of the Autopilot routing engine."""
+    __tablename__ = "autopilot_logs"
+
+    id = Column(BigInteger, primary_key=True, index=True)
+    llm_request_id = Column(BigInteger, ForeignKey("llm_requests.id", ondelete="SET NULL"), nullable=True, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+    # Routing decision details
+    original_model = Column(String(100), nullable=False, index=True)
+    selected_model = Column(String(100), nullable=False, index=True)
+    task_type = Column(String(50), nullable=True, index=True)
+    routing_reason = Column(String(255), nullable=False)
+    
+    # Cost and performance metrics
+    cost_usd = Column(Numeric(precision=10, scale=6), nullable=False)
+    estimated_savings_usd = Column(Numeric(precision=10, scale=6), nullable=True)
+    
+    # Confidence and metadata
+    confidence_score = Column(Float, nullable=True)
+    is_cached_response = Column(Boolean, server_default='false', nullable=False)
+    
+    # New fields for debugging and analysis
+    prompt_length = Column(Integer, nullable=True)
+    temperature = Column(Float, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+    # Relationships
+    organization = relationship("Organization")
+    llm_request = relationship("LLMRequest")
+    validation_logs = relationship("ValidationLog", back_populates="autopilot_log", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<AutopilotLog(id={self.id}, original='{self.original_model}', selected='{self.selected_model}')>"
+
+# ============================================================================
+# Response Validation Logging
+# ============================================================================
+
+class ValidationLog(Base):
+    """Logs response validation failures and fix attempts."""
+    __tablename__ = "validation_logs"
+
+    id = Column(BigInteger, primary_key=True, index=True)
+    autopilot_log_id = Column(BigInteger, ForeignKey("autopilot_logs.id", ondelete="CASCADE"), nullable=False, index=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    validation_type = Column(String(100), nullable=False, index=True) # e.g., 'invalid_json', 'empty_response'
+    fix_attempted = Column(String(255), nullable=False) # e.g., 'retry_with_stricter_prompt'
+    retry_count = Column(Integer, nullable=False)
+    was_successful = Column(Boolean, nullable=False)
+
+    # Relationship to AutopilotLog
+    autopilot_log = relationship("AutopilotLog", back_populates="validation_logs")
+
+    def __repr__(self):
+        return f"<ValidationLog(id={self.id}, type='{self.validation_type}', success={self.was_successful})>"
