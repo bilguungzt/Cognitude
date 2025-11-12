@@ -64,25 +64,19 @@ class SchemaEnforcer:
 
     def validate_and_retry(self, request: dict, schema: dict, response: dict, project_id: int) -> dict:
         """
-        Orchestrates the validation and retry process for a given response.
+        Validates the response against the schema.
+        NOTE: This method is deprecated. Schema validation retries should be handled at the proxy level
+        to avoid circular dependencies with the LLM provider.
         """
-        for attempt in range(self.max_retries):
-            is_valid, error_message = self._validate_json_schema(response, schema)
-
-            if is_valid:
-                self._log_validation(project_id, request, response, True, "", attempt)
-                return response
-
-            self._log_validation(project_id, request, response, False, error_message, attempt)
-            
-            retry_prompt = self._generate_retry_prompt(schema, error_message)
-            request["messages"].append({"role": "user", "content": retry_prompt})
-            
-            # This assumes llm_provider has a `create_chat_completion` method
-            response = self.llm_provider.create_chat_completion(request)
-
-        self._log_validation(project_id, request, response, False, "Max retries exceeded", self.max_retries)
-        return response # Or raise an exception
+        is_valid, error_message = self._validate_json_schema(response, schema)
+        
+        if is_valid:
+            self._log_validation(project_id, request, response, True, "", 0)
+            return response
+        else:
+            self._log_validation(project_id, request, response, False, error_message, 0)
+            # Just return the original response since retries are handled at the proxy level
+            return response
 
     def _generate_schema_prompt(self, schema: dict) -> str:
         """

@@ -245,3 +245,10 @@ class SchemaStats(BaseModel):
 class TopSchemaStatsResponse(BaseModel):
     """Response model for top 5 most used schemas."""
     top_schemas: List[SchemaStats]
+
+class DashboardSummaryStats(BaseModel):
+    """Summary statistics for the dashboard."""
+    total_cost_savings: float
+    autopilot_decisions_today: int
+    validation_failures_last_24h: int
+    active_schemas: int

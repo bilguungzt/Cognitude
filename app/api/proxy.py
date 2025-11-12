@@ -140,15 +140,35 @@ async def chat_completions(
 
     # 4. Validate and Retry if schema was provided
     if schema:
-        response_data = schema_enforcer.validate_and_retry(
-            request=request_body.model_dump(),
-            schema=schema,
-            response=response_data.model_dump(),
-            project_id=organization.id
-        )
-        # Convert back to Pydantic model
-        response_data = schemas.ChatCompletionResponse(**response_data)
-        autopilot_metadata['x_cognitude_validation'] = {"status": "completed"}
+        # Perform schema validation and retries within the proxy endpoint
+        # instead of in the schema enforcer to avoid circular dependency
+        max_retries = 3
+        current_response = response_data.model_dump()
+        
+        for attempt in range(max_retries):
+            is_valid, error_message = schema_enforcer._validate_json_schema(current_response, schema)
+            
+            if is_valid:
+                response_data = schemas.ChatCompletionResponse(**current_response)
+                autopilot_metadata['x_cognitude_validation'] = {"status": "completed", "attempts": attempt + 1}
+                break
+            else:
+                # Log the validation failure
+                schema_enforcer._log_validation(organization.id, request_body.model_dump(), current_response, False, error_message, attempt)
+                
+                # Create a new request with retry instructions
+                retry_prompt = schema_enforcer._generate_retry_prompt(schema, error_message)
+                new_request = request_body.model_copy()
+                new_request.messages.append(schemas.ChatMessage(role="user", content=retry_prompt))
+                
+                # Call the LLM again via autopilot
+                result = await autopilot.process_request(new_request, org_model, openai_api_key)
+                current_response = result['response'].model_dump()
+                
+                # If this was the last attempt, use the final response even if invalid
+                if attempt == max_retries - 1:
+                    response_data = schemas.ChatCompletionResponse(**current_response)
+                    autopilot_metadata['x_cognitude_validation'] = {"status": "failed", "attempts": attempt + 1, "error": error_message}
 
     # 5. Return final response
     final_response_dict = response_data.model_dump()
