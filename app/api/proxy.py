@@ -3,8 +3,9 @@ Core LLM proxy endpoint with caching and multi-provider routing.
 """
 import time
 from typing import Optional
+import json
 from decimal import Decimal
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response, Header, Request
 from sqlalchemy.orm import Session
 
 from .. import crud, schemas, models
@@ -14,19 +15,23 @@ from ..services.router import ProviderRouter
 from ..services.tokens import count_messages_tokens
 from ..services.pricing import calculate_cost
 from ..services.redis_cache import redis_cache
-from ..services.rate_limiter import RateLimiter
 from ..core.autopilot import AutopilotEngine
+from ..core.schema_enforcer import SchemaEnforcer, validate_user_schema
+from ..limiter import limiter
 
 
 router = APIRouter(tags=["proxy"])
 
 
 @router.post("/v1/chat/completions", response_model=schemas.ChatCompletionResponse)
+@limiter.limit("100/minute")
 async def chat_completions(
-    request: schemas.ChatCompletionRequest,
+    request_body: schemas.ChatCompletionRequest,
+    request: Request,
     response: Response,
     db: Session = Depends(get_db),
-    organization: schemas.Organization = Depends(get_organization_from_api_key)
+    organization: schemas.Organization = Depends(get_organization_from_api_key),
+    x_cognitude_schema: Optional[str] = Header(None)
 ):
     """
     OpenAI-compatible chat completions endpoint with caching and multi-provider routing.
@@ -66,22 +71,6 @@ async def chat_completions(
     """
     start_time = time.time()
     
-    # Check rate limits FIRST (before any processing)
-    rate_limiter = RateLimiter(redis_cache, db)
-    is_allowed, retry_after, usage = rate_limiter.check_rate_limit(organization.id)
-    
-    # Add rate limit headers to response
-    headers = rate_limiter.get_rate_limit_headers(organization.id, usage)
-    for header, value in headers.items():
-        response.headers[header] = value
-    
-    # Return 429 if rate limited
-    if not is_allowed:
-        raise HTTPException(
-            status_code=429,
-            detail=f"Rate limit exceeded. Retry after {retry_after} seconds.",
-            headers={"Retry-After": str(retry_after)}
-        )
     
     # Instantiate Autopilot Engine
     autopilot = AutopilotEngine(db, redis_cache)
@@ -92,40 +81,80 @@ async def chat_completions(
     if not openai_provider:
         raise HTTPException(status_code=400, detail="OpenAI provider not configured.")
     
-    openai_api_key = openai_provider.api_key_encrypted
+    openai_api_key = openai_provider.get_api_key() if openai_provider else None
+    if not openai_api_key:
+        raise HTTPException(status_code=400, detail="OpenAI API key not configured.")
 
     # Process request through Autopilot
     org_model = db.query(models.Organization).filter(models.Organization.id == organization.id).first()
     if not org_model:
         raise HTTPException(status_code=404, detail="Organization not found.")
-    result = await autopilot.process_request(request, org_model, openai_api_key)
+    
+    # 1. Schema Enforcement Setup
+    schema = None
+    if x_cognitude_schema:
+        try:
+            schema = json.loads(x_cognitude_schema)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Invalid JSON in x-cognitude-schema header")
+        
+        try:
+            validate_user_schema(schema)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=f"Schema validation failed: {e}")
 
-    # Extract response and metadata
+    # The AutopilotEngine will act as the LLM provider for retries
+    schema_enforcer = SchemaEnforcer(db=db, llm_provider=autopilot)
+
+    # 2. Inject schema prompt if schema is provided
+    if schema:
+        request_dict = request_body.model_dump()
+        modified_request_dict = schema_enforcer.enforce_schema(
+            request=request_dict,
+            schema=schema
+        )
+        request_body = schemas.ChatCompletionRequest(**modified_request_dict)
+
+    # 3. Call LLM via Autopilot
+    result = await autopilot.process_request(request_body, org_model, openai_api_key)
     response_data = result['response']
     autopilot_metadata = result['autopilot_metadata']
 
-    # Log the request
+    # Log the initial request before validation
     latency_ms = int((time.time() - start_time) * 1000)
     usage = response_data.usage
     
-    crud.log_llm_request(
+    llm_request_log = crud.log_llm_request(
         db=db,
         organization_id=organization.id,
-        model=request.model,
-        provider=autopilot_metadata.get('selected_model', request.model),
+        model=request_body.model,
+        provider=autopilot_metadata.get('selected_model', request_body.model),
         prompt_tokens=usage.prompt_tokens,
         completion_tokens=usage.completion_tokens,
-        cost_usd=Decimal(0), # Will be updated later
+        cost_usd=Decimal(0), # Placeholder, will be updated
         latency_ms=latency_ms,
         cache_hit=autopilot_metadata.get('routing_reason') == 'cache_hit',
-        cache_key=None, # Will be updated later
+        cache_key=None, # Placeholder
     )
+    db.flush() # Ensure llm_request_log gets an ID
 
-    # Return response with metadata
-    return {
-        **response_data.model_dump(),
-        "x-cognitude": autopilot_metadata
-    }
+    # 4. Validate and Retry if schema was provided
+    if schema:
+        response_data = schema_enforcer.validate_and_retry(
+            request=request_body.model_dump(),
+            schema=schema,
+            response=response_data.model_dump(),
+            project_id=organization.id
+        )
+        # Convert back to Pydantic model
+        response_data = schemas.ChatCompletionResponse(**response_data)
+        autopilot_metadata['x_cognitude_validation'] = {"status": "completed"}
+
+    # 5. Return final response
+    final_response_dict = response_data.model_dump()
+    final_response_dict["x-cognitude"] = autopilot_metadata
+    
+    return final_response_dict
 
 
 @router.get("/v1/models")
@@ -143,25 +172,25 @@ async def list_models(
     # Build list of available models based on providers
     models_list = []
     
-    for provider in providers:
-        if provider.provider == "openai":
+    for provider_config in providers:
+        if str(provider_config.provider) == "openai":
             models_list.extend([
                 {"id": "gpt-4", "object": "model", "owned_by": "openai"},
                 {"id": "gpt-4-turbo", "object": "model", "owned_by": "openai"},
                 {"id": "gpt-3.5-turbo", "object": "model", "owned_by": "openai"},
             ])
-        elif provider.provider == "anthropic":
+        elif str(provider_config.provider) == "anthropic":
             models_list.extend([
                 {"id": "claude-3-opus", "object": "model", "owned_by": "anthropic"},
                 {"id": "claude-3-sonnet", "object": "model", "owned_by": "anthropic"},
                 {"id": "claude-3-haiku", "object": "model", "owned_by": "anthropic"},
             ])
-        elif provider.provider == "mistral":
+        elif str(provider_config.provider) == "mistral":
             models_list.extend([
                 {"id": "mistral-large", "object": "model", "owned_by": "mistral"},
                 {"id": "mistral-medium", "object": "model", "owned_by": "mistral"},
             ])
-        elif provider.provider == "groq":
+        elif str(provider_config.provider) == "groq":
             models_list.extend([
                 {"id": "llama3-70b", "object": "model", "owned_by": "groq"},
                 {"id": "mixtral-8x7b", "object": "model", "owned_by": "groq"},

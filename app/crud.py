@@ -1,9 +1,10 @@
 """
 CRUD operations for Cognitude LLM Monitoring Platform.
+Fixed version with proper SQLAlchemy type handling.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, Integer
+from sqlalchemy import func, Integer, cast
 from decimal import Decimal
 import hashlib
 import json
@@ -13,22 +14,26 @@ from . import models, schemas
 
 
 # ============================================================================
-# Organization CRUD (kept from original)
+# Organization CRUD
 # ============================================================================
 
-def get_organization_by_api_key_hash(db: Session, api_key_hash: str):
+def get_organization_by_api_key_hash(db: Session, api_key_hash: str) -> Optional[models.Organization]:
     """Get organization by API key hash."""
     return db.query(models.Organization).filter(
         models.Organization.api_key_hash == api_key_hash
     ).first()
 
 
-def get_organizations(db: Session):
+def get_organizations(db: Session) -> List[models.Organization]:
     """Get all organizations."""
     return db.query(models.Organization).all()
 
 
-def create_organization(db: Session, organization: schemas.OrganizationCreate, api_key_hash: str):
+def create_organization(
+    db: Session, 
+    organization: schemas.OrganizationCreate, 
+    api_key_hash: str
+) -> models.Organization:
     """Create a new organization."""
     db_organization = models.Organization(
         name=organization.name,
@@ -105,7 +110,7 @@ def get_llm_requests(
 # Cache Operations
 # ============================================================================
 
-def generate_cache_key(messages: List[Dict], model: str, temperature: float = 1.0) -> str:
+def generate_cache_key(messages: List[Dict[str, Any]], model: str, temperature: float = 1.0) -> str:
     """Generate cache key from request parameters."""
     cache_input = {
         "messages": messages,
@@ -117,7 +122,10 @@ def generate_cache_key(messages: List[Dict], model: str, temperature: float = 1.
 
 
 def get_from_cache(db: Session, cache_key: str) -> Optional[models.LLMCache]:
-    """Check if response exists in cache and is not expired."""
+    """
+    Check if response exists in cache and is not expired.
+    This is a READ-ONLY operation.
+    """
     cache_entry = db.query(models.LLMCache).filter(
         models.LLMCache.cache_key == cache_key
     ).first()
@@ -126,19 +134,41 @@ def get_from_cache(db: Session, cache_key: str) -> Optional[models.LLMCache]:
         return None
     
     # Check if expired
-    expiry_time = cache_entry.created_at + timedelta(hours=cache_entry.ttl_hours)
-    if datetime.utcnow() > expiry_time:
-        # Cache expired, delete it
-        db.delete(cache_entry)
-        db.commit()
-        return None
+    # Access the raw values from the SQLAlchemy object instance to avoid Column type errors
+    # Use hasattr and getattr with a fallback to the object's attribute for robustness
+    raw_created_at = getattr(cache_entry, 'created_at', None)
+    raw_ttl_hours = getattr(cache_entry, 'ttl_hours', None)
     
-    # Update access stats
-    cache_entry.last_accessed = datetime.utcnow()
-    cache_entry.hit_count += 1
-    db.commit()
-    
+    if raw_created_at is not None and raw_ttl_hours is not None:
+        try:
+            now = datetime.now(timezone.utc)
+            if raw_created_at.tzinfo is None:
+                raw_created_at = raw_created_at.replace(tzinfo=timezone.utc)
+            
+            expiry_time = raw_created_at + timedelta(hours=float(raw_ttl_hours))
+            
+            if now > expiry_time:
+                # Expired, but don't delete here. Let a background job handle it.
+                return None
+        except (ValueError, TypeError, AttributeError):
+            return None # Treat as expired if there's an error
+            
     return cache_entry
+
+
+def update_cache_stats(db: Session, cache_key: str):
+    """
+    Update cache statistics for a cache hit. This is a WRITE operation.
+    """
+    # Use a scalar subquery or a direct update with a value, not a Column reference for the increment
+    db.query(models.LLMCache).filter(models.LLMCache.cache_key == cache_key).update(
+        {
+            models.LLMCache.hit_count: models.LLMCache.hit_count + 1,
+            models.LLMCache.last_accessed: datetime.now(timezone.utc),
+        },
+        synchronize_session=False,
+    )
+    db.commit()
 
 
 def store_in_cache(
@@ -155,7 +185,8 @@ def store_in_cache(
         prompt_hash=prompt_hash,
         model=model,
         response_json=response_json,
-        ttl_hours=ttl_hours
+        ttl_hours=ttl_hours,
+        hit_count=0
     )
     db.add(cache_entry)
     db.commit()
@@ -175,11 +206,11 @@ def clear_cache(
         query = query.filter(models.LLMCache.model == model)
     
     if older_than_hours:
-        cutoff_time = datetime.utcnow() - timedelta(hours=older_than_hours)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=older_than_hours)
         query = query.filter(models.LLMCache.created_at < cutoff_time)
     
     count = query.count()
-    query.delete()
+    query.delete(synchronize_session=False)
     db.commit()
     
     return count
@@ -187,26 +218,29 @@ def clear_cache(
 
 def get_cache_stats(db: Session) -> Dict[str, Any]:
     """Get cache statistics."""
-    total_entries = db.query(func.count(models.LLMCache.cache_key)).scalar()
+    total_entries = db.query(func.count(models.LLMCache.cache_key)).scalar() or 0
     total_hits = db.query(func.sum(models.LLMCache.hit_count)).scalar() or 0
     
     # Calculate hit rate from request logs
-    total_requests = db.query(func.count(models.LLMRequest.id)).scalar()
+    total_requests = db.query(func.count(models.LLMRequest.id)).scalar() or 0
     cached_requests = db.query(func.count(models.LLMRequest.id)).filter(
-        models.LLMRequest.cache_hit == True
-    ).scalar()
+        models.LLMRequest.cache_hit == True  # noqa: E712
+    ).scalar() or 0
     
     hit_rate = cached_requests / total_requests if total_requests > 0 else 0.0
     
-    # Estimate savings (rough calculation)
-    # Assume average cached request saves $0.002
-    estimated_savings = cached_requests * 0.002
+    # Calculate savings by summing the cost of all cached requests
+    # Use == True for boolean comparison with SQLAlchemy, and suppress the linter warning
+    savings_query = db.query(func.sum(models.LLMRequest.cost_usd)).filter(
+        models.LLMRequest.cache_hit == True  # noqa: E712
+    )
+    estimated_savings = savings_query.scalar() or Decimal(0)
     
     return {
-        "total_entries": total_entries,
-        "total_hits": total_hits,
-        "hit_rate": hit_rate,
-        "estimated_savings_usd": estimated_savings
+        "total_entries": int(total_entries),
+        "total_hits": int(total_hits),
+        "hit_rate": float(hit_rate),
+        "estimated_savings_usd": float(estimated_savings)
     }
 
 
@@ -247,7 +281,7 @@ def get_provider_configs(
     )
     
     if enabled_only:
-        query = query.filter(models.ProviderConfig.enabled == True)
+        query = query.filter(models.ProviderConfig.enabled == True)  # noqa: E712
     
     return query.order_by(models.ProviderConfig.priority.desc()).all()
 
@@ -269,13 +303,15 @@ def update_provider_config(
     if not config:
         return None
     
-    if updates.enabled is not None:
-        config.enabled = updates.enabled
-    if updates.priority is not None:
-        config.priority = updates.priority
-    if updates.api_key is not None:
-        # In production, encrypt this
-        config.api_key_encrypted = updates.api_key
+    update_data = updates.model_dump(exclude_unset=True)
+    
+    # Properly update attributes
+    if "api_key" in update_data:
+        config.api_key_encrypted = update_data["api_key"]
+    if "enabled" in update_data:
+        config.enabled = update_data["enabled"]
+    if "priority" in update_data:
+        config.priority = update_data["priority"]
     
     db.commit()
     db.refresh(config)
@@ -313,21 +349,37 @@ def get_analytics(
     if end_date:
         query = query.filter(models.LLMRequest.timestamp <= end_date)
     
-    # Total metrics
+    # Total metrics with proper null handling
     total_requests = query.count()
-    total_cost = db.query(func.sum(models.LLMRequest.cost_usd)).filter(
-        models.LLMRequest.organization_id == organization_id
-    ).scalar() or 0.0
     
-    avg_latency = db.query(func.avg(models.LLMRequest.latency_ms)).filter(
+    cost_query = db.query(func.sum(models.LLMRequest.cost_usd)).filter(
         models.LLMRequest.organization_id == organization_id
-    ).scalar() or 0.0
+    )
+    if start_date:
+        cost_query = cost_query.filter(models.LLMRequest.timestamp >= start_date)
+    if end_date:
+        cost_query = cost_query.filter(models.LLMRequest.timestamp <= end_date)
+    total_cost = cost_query.scalar() or Decimal(0)
     
-    total_tokens = db.query(func.sum(models.LLMRequest.total_tokens)).filter(
+    latency_query = db.query(func.avg(models.LLMRequest.latency_ms)).filter(
         models.LLMRequest.organization_id == organization_id
-    ).scalar() or 0
+    )
+    if start_date:
+        latency_query = latency_query.filter(models.LLMRequest.timestamp >= start_date)
+    if end_date:
+        latency_query = latency_query.filter(models.LLMRequest.timestamp <= end_date)
+    avg_latency = latency_query.scalar() or 0.0
     
-    cached_requests = query.filter(models.LLMRequest.cache_hit == True).count()
+    tokens_query = db.query(func.sum(models.LLMRequest.total_tokens)).filter(
+        models.LLMRequest.organization_id == organization_id
+    )
+    if start_date:
+        tokens_query = tokens_query.filter(models.LLMRequest.timestamp >= start_date)
+    if end_date:
+        tokens_query = tokens_query.filter(models.LLMRequest.timestamp <= end_date)
+    total_tokens = tokens_query.scalar() or 0
+    
+    cached_requests = query.filter(models.LLMRequest.cache_hit == True).count()  # noqa: E712
     cache_hit_rate = cached_requests / total_requests if total_requests > 0 else 0.0
     
     # Daily breakdown
@@ -335,7 +387,7 @@ def get_analytics(
         func.date(models.LLMRequest.timestamp).label('date'),
         func.count(models.LLMRequest.id).label('requests'),
         func.sum(models.LLMRequest.cost_usd).label('cost'),
-        func.sum(func.cast(models.LLMRequest.cache_hit, Integer)).label('cached_requests')
+        func.sum(cast(models.LLMRequest.cache_hit, Integer)).label('cached_requests')
     ).filter(
         models.LLMRequest.organization_id == organization_id
     )
@@ -382,25 +434,25 @@ def get_analytics(
     usage_by_model = model_query.group_by(models.LLMRequest.model).all()
     
     return {
-        "total_requests": total_requests,
+        "total_requests": int(total_requests),
         "total_cost": float(total_cost),
         "average_latency": float(avg_latency),
-        "cache_hit_rate": cache_hit_rate,
-        "total_tokens": total_tokens,
+        "cache_hit_rate": float(cache_hit_rate),
+        "total_tokens": int(total_tokens),
         "usage_by_day": [
             {
                 "date": str(row.date),
-                "requests": row.requests,
+                "requests": int(row.requests),
                 "cost": float(row.cost or 0),
-                "cached_requests": row.cached_requests or 0,
-                "cache_savings": 0.0  # Calculate based on average cost
+                "cached_requests": int(row.cached_requests or 0),
+                "cache_savings": 0.0
             }
             for row in usage_by_day
         ],
         "usage_by_provider": [
             {
-                "provider": row.provider,
-                "requests": row.requests,
+                "provider": str(row.provider),
+                "requests": int(row.requests),
                 "cost": float(row.cost or 0),
                 "avg_latency_ms": float(row.avg_latency_ms or 0)
             }
@@ -408,12 +460,27 @@ def get_analytics(
         ],
         "usage_by_model": [
             {
-                "model": row.model,
-                "requests": row.requests,
+                "model": str(row.model),
+                "requests": int(row.requests),
                 "cost": float(row.cost or 0),
-                "total_tokens": row.total_tokens or 0
+                "total_tokens": int(row.total_tokens or 0)
             }
             for row in usage_by_model
         ]
     }
 
+
+# ============================================================================
+# Schema Validation Logging
+# ============================================================================
+
+def create_schema_validation_log(
+    db: Session, 
+    log: schemas.SchemaValidationLogCreate
+) -> models.SchemaValidationLog:
+    """Create a new schema validation log entry."""
+    db_log = models.SchemaValidationLog(**log.model_dump())
+    db.add(db_log)
+    db.commit()
+    db.refresh(db_log)
+    return db_log

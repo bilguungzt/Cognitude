@@ -1,7 +1,6 @@
 """
 Notification service for sending alerts via Slack, email, and webhooks.
 """
-import os
 import requests
 import smtplib
 from email.mime.text import MIMEText
@@ -13,6 +12,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from .. import models
+from ..config import get_settings
+
+settings = get_settings()
 
 
 class NotificationService:
@@ -105,16 +107,16 @@ class NotificationService:
             # Use environment variables or provided config
             if not smtp_config:
                 smtp_config = {
-                    "host": os.getenv("SMTP_HOST", "smtp.gmail.com"),
-                    "port": int(os.getenv("SMTP_PORT", "587")),
-                    "username": os.getenv("SMTP_USERNAME"),
-                    "password": os.getenv("SMTP_PASSWORD")
+                    "host": settings.SMTP_SERVER,
+                    "port": settings.SMTP_PORT,
+                    "username": settings.SMTP_USERNAME,
+                    "password": settings.SMTP_PASSWORD.get_secret_value() if settings.SMTP_PASSWORD else None
                 }
             
             if not from_email:
-                from_email = os.getenv("ALERT_FROM_EMAIL", smtp_config.get("username"))
+                from_email = settings.FROM_EMAIL
             
-            if not smtp_config.get("username") or not smtp_config.get("password"):
+            if not from_email or not smtp_config.get("username") or not smtp_config.get("password"):
                 print("SMTP credentials not configured")
                 return False
             
@@ -525,5 +527,31 @@ class NotificationService:
                     results["alerts_triggered"] += 1
                     for channel_type, count in notification_results.items():
                         results["notifications_sent"][channel_type] += count
+        
+        return results
+    def check_all_alerts(self) -> Dict[str, Any]:
+        """
+        Check cost thresholds and send alerts for all organizations.
+        
+        Returns:
+            Dict with alert results
+        """
+        results = {
+            "organizations_checked": 0,
+            "alerts_checked": 0,
+            "alerts_triggered": 0,
+            "notifications_sent": {"slack": 0, "email": 0, "webhook": 0}
+        }
+        
+        # Get all organizations
+        organizations = self.db.query(models.Organization).all()
+        
+        for org in organizations:
+            org_results = self.check_and_send_cost_alerts(org.id)
+            results["organizations_checked"] += 1
+            results["alerts_checked"] += org_results["alerts_checked"]
+            results["alerts_triggered"] += org_results["alerts_triggered"]
+            for channel_type, count in org_results["notifications_sent"].items():
+                results["notifications_sent"][channel_type] += count
         
         return results

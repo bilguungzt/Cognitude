@@ -1,17 +1,12 @@
-import dotenv
-dotenv.load_dotenv()
-
-# Override with .env.local for local development
-dotenv.load_dotenv(dotenv_path='.env.local', override=True)
-
-import os
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+from app.config import get_settings
 
-engine = create_engine(DATABASE_URL) # type: ignore
+settings = get_settings()
+
+engine = create_engine(str(settings.DATABASE_URL))
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

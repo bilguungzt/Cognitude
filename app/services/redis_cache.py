@@ -4,9 +4,12 @@ Provides fast cache lookups (<10ms) with automatic TTL expiration.
 """
 import redis
 import json
-import os
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
+
+from app.config import get_settings
+
+settings = get_settings()
 
 
 class RedisCache:
@@ -22,20 +25,22 @@ class RedisCache:
     
     def __init__(self):
         """Initialize Redis connection."""
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-        try:
-            self.redis = redis.from_url(
-                redis_url,
-                decode_responses=True,
-                socket_timeout=2,
-                socket_connect_timeout=2
-            )
-            # Test connection
-            self.redis.ping()
-            self.available = True
-        except (redis.ConnectionError, redis.TimeoutError):
-            self.redis = None
-            self.available = False
+        self.redis: Optional[redis.Redis] = None
+        self.available = False
+        if settings.REDIS_URL:
+            try:
+                self.redis = redis.from_url(
+                    str(settings.REDIS_URL),
+                    decode_responses=True,
+                    socket_timeout=2,
+                    socket_connect_timeout=2
+                )
+                # Test connection
+                self.redis.ping()
+                self.available = True
+            except (redis.ConnectionError, redis.TimeoutError):
+                self.redis = None
+                self.available = False
     
     def get(self, cache_key: str, organization_id: int) -> Optional[Dict[str, Any]]:
         """
@@ -48,7 +53,7 @@ class RedisCache:
         Returns:
             Cached response dict or None if not found
         """
-        if not self.available:
+        if not self.available or not self.redis:
             return None
         
         try:
@@ -101,7 +106,7 @@ class RedisCache:
         Returns:
             True if cached successfully, False otherwise
         """
-        if not self.available:
+        if not self.available or not self.redis:
             return False
         
         try:
@@ -146,7 +151,7 @@ class RedisCache:
         Returns:
             Cache statistics dict
         """
-        if not self.available:
+        if not self.available or not self.redis:
             return {
                 "redis_available": False,
                 "total_entries": 0,
@@ -189,7 +194,7 @@ class RedisCache:
         Returns:
             Number of entries deleted
         """
-        if not self.available:
+        if not self.available or not self.redis:
             return 0
         
         try:
@@ -219,7 +224,7 @@ class RedisCache:
         Returns:
             Health status dict
         """
-        if not self.available:
+        if not self.available or not self.redis:
             return {
                 "status": "unavailable",
                 "message": "Redis connection not established"

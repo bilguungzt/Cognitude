@@ -13,6 +13,10 @@ from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import JSONB
 
 from .database import Base
+from passlib.context import CryptContext
+
+# Setup bcrypt for hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 # ============================================================================
@@ -25,7 +29,7 @@ class Organization(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True, nullable=False)
-    api_key_hash = Column(String, unique=True, nullable=False)
+    api_key_hash = Column(String(255), unique=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relationships
@@ -35,6 +39,15 @@ class Organization(Base):
 
     def __repr__(self):
         return f"<Organization(id={self.id}, name='{self.name}')>"
+
+    @staticmethod
+    def hash_api_key(api_key: str) -> str:
+        """Hashes an API key using bcrypt."""
+        return pwd_context.hash(api_key)
+
+    def verify_api_key(self, api_key: str) -> bool:
+        """Verifies a plain-text API key against the stored hash."""
+        return pwd_context.verify(api_key, self.api_key_hash)
 
 
 # ============================================================================
@@ -122,6 +135,10 @@ class ProviderConfig(Base):
 
     def __repr__(self):
         return f"<ProviderConfig(id={self.id}, provider='{self.provider}', enabled={self.enabled})>"
+
+    def get_api_key(self) -> str:
+        # TODO: Decrypt in production
+        return str(self.api_key_encrypted)
 
 
 # ============================================================================
@@ -240,3 +257,30 @@ class ValidationLog(Base):
 
     def __repr__(self):
         return f"<ValidationLog(id={self.id}, type='{self.validation_type}', success={self.was_successful})>"
+
+class SchemaValidationLog(Base):
+    """Logs the schema validation and enforcement process."""
+    __tablename__ = "schema_validation_logs"
+
+    id = Column(BigInteger, primary_key=True, index=True)
+    llm_request_id = Column(BigInteger, ForeignKey("llm_requests.id", ondelete="SET NULL"), nullable=True, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+    # Schema and validation details
+    provided_schema = Column(JSONB, nullable=False)
+    llm_response = Column(Text, nullable=False)
+    is_valid = Column(Boolean, nullable=False)
+    validation_error = Column(Text, nullable=True)
+
+    # Retry logic
+    retry_count = Column(Integer, server_default='0', nullable=False)
+    final_response = Column(Text, nullable=True)
+    was_successful = Column(Boolean, nullable=False)
+
+    # Relationships
+    organization = relationship("Organization")
+    llm_request = relationship("LLMRequest")
+
+    def __repr__(self):
+        return f"<SchemaValidationLog(id={self.id}, is_valid={self.is_valid}, success={self.was_successful})>"

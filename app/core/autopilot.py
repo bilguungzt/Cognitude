@@ -175,7 +175,7 @@ class AutopilotEngine:
 
         # 3. Check cache
         cache_key = self.generate_cache_key(request, selected_model)
-        cached_response = self.redis_client.get(cache_key, organization.id)
+        cached_response = self.redis_client.get(cache_key, getattr(organization, 'id'))
 
         if cached_response:
             # Log cache hit and return
@@ -187,7 +187,7 @@ class AutopilotEngine:
                 task_type=task_type,
                 routing_reason="cache_hit",
                 cost_usd=Decimal(0),
-                estimated_savings_usd=Decimal(cached_response['cost_usd']),
+                estimated_savings_usd=Decimal(cached_response.get('cost_usd', 0)),
                 confidence_score=confidence,
                 is_cached_response=True,
                 prompt_length=len(str(request.messages)),
@@ -237,7 +237,7 @@ class AutopilotEngine:
                 max_tokens=modified_request.max_tokens
             )
 
-        validator = ResponseValidator(db=self.db, autopilot_log_id=autopilot_log.id)
+        validator = ResponseValidator(db=self.db, autopilot_log_id=getattr(autopilot_log, 'id'))
         final_response = await validator.validate_and_fix(
             response=response,
             request=request,

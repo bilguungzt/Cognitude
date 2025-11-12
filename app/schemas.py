@@ -2,7 +2,7 @@
 Pydantic schemas for Cognitude LLM Monitoring Platform API.
 These models handle request/response validation and generate OpenAPI documentation.
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
@@ -61,6 +61,14 @@ class ChatCompletionRequest(BaseModel):
     frequency_penalty: Optional[float] = 0.0
     presence_penalty: Optional[float] = 0.0
     stream: Optional[bool] = False
+
+    @validator("messages")
+    def validate_message_size(cls, v):
+        """Validate the total size of the message content."""
+        total_length = sum(len(msg.content) for msg in v)
+        if total_length > 100000:  # 100KB limit
+            raise ValueError("Total message content exceeds the maximum allowed size of 100KB.")
+        return v
 
 
 class UsageInfo(BaseModel):
@@ -189,3 +197,51 @@ class ErrorResponse(BaseModel):
     error: str
     message: str
     details: Optional[Dict[str, Any]] = None
+
+# ============================================================================
+# Schema Validation Schemas
+# ============================================================================
+
+class SchemaValidationLogBase(BaseModel):
+    """Base schema for schema validation logs."""
+    organization_id: int
+    llm_request_id: Optional[int] = None
+    provided_schema: Dict[str, Any]
+    llm_response: str
+    is_valid: bool
+    validation_error: Optional[str] = None
+    retry_count: int = 0
+    final_response: Optional[str] = None
+    was_successful: bool
+
+class SchemaValidationLogCreate(SchemaValidationLogBase):
+    """Schema for creating a new schema validation log."""
+    pass
+
+class SchemaValidationLog(SchemaValidationLogBase):
+    """Schema for schema validation log response."""
+    id: int
+    timestamp: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================================
+# Dashboard Schemas
+# ============================================================================
+
+class SchemaStats(BaseModel):
+    """Statistics for a single schema."""
+    schema_hash: str
+    total_attempts: int
+    failure_rate: float
+    avg_retries: float
+
+    class Config:
+        from_attributes = True
+
+
+class TopSchemaStatsResponse(BaseModel):
+    """Response model for top 5 most used schemas."""
+    top_schemas: List[SchemaStats]

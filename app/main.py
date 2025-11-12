@@ -1,11 +1,30 @@
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
-from .api import auth, proxy, analytics, providers, cache, smart_routing, alerts, rate_limits
+import time
+from .api import auth, proxy, analytics, providers, cache, smart_routing, alerts, rate_limits, monitoring, dashboard
+from .api.monitoring import request_count, request_latency
 from .database import Base, engine
 from .services.background_tasks import scheduler
+from .limiter import limiter
+from .config import get_settings
+
+settings = get_settings()
+if settings.SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.ENVIRONMENT,
+        integrations=[
+            FastApiIntegration(),
+        ],
+        traces_sample_rate=1.0,
+    )
 
 
 @asynccontextmanager
@@ -94,6 +113,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def track_metrics(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    
+    endpoint = request.url.path
+    status_code = response.status_code
+    
+    request_count.labels(method=request.method, endpoint=endpoint, status=status_code).inc()
+    request_latency.labels(method=request.method, endpoint=endpoint).observe(process_time)
+    
+    return response
+
 # Include routers
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(proxy.router)  # No prefix - uses /v1 from router
@@ -103,6 +136,8 @@ app.include_router(analytics.router)  # Uses /analytics prefix from router
 app.include_router(smart_routing.router)  # Smart routing endpoints
 app.include_router(alerts.router)  # Alert management endpoints
 app.include_router(rate_limits.router)  # Rate limiting configuration
+app.include_router(monitoring.router) # Monitoring endpoints
+app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
 
 @app.get("/")
 def read_root():
@@ -110,20 +145,4 @@ def read_root():
         "message": "Cognitude LLM Proxy",
         "version": "1.0.0",
         "docs": "/docs"
-    }
-
-@app.get("/health", tags=["system"])
-def health_check():
-    """
-    Health check endpoint for monitoring and load balancers
-    """
-    from .services.redis_cache import redis_cache
-    
-    redis_status = redis_cache.health_check()
-    
-    return {
-        "status": "healthy",
-        "service": "Cognitude LLM Proxy",
-        "version": "1.0.0",
-        "redis": redis_status
     }

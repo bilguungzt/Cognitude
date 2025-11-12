@@ -1,11 +1,13 @@
 """Notification service for sending drift alerts via email and Slack."""
-import os
 from typing import Optional
 import aiohttp
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from sqlalchemy.orm import Session
 
 from .. import models
+from ..config import get_settings
+
+settings = get_settings()
 
 
 class NotificationService:
@@ -15,19 +17,20 @@ class NotificationService:
         self.db = db
         
         # Email configuration
-        self.mail_conf = ConnectionConfig(
-            MAIL_USERNAME=os.getenv("SMTP_USERNAME", ""),
-            MAIL_PASSWORD=os.getenv("SMTP_PASSWORD", ""),
-            MAIL_FROM=os.getenv("FROM_EMAIL", "alerts@cognitude.io"),
-            MAIL_PORT=int(os.getenv("SMTP_PORT", "587")),
-            MAIL_SERVER=os.getenv("SMTP_SERVER", "smtp.gmail.com"),
-            MAIL_STARTTLS=True,
-            MAIL_SSL_TLS=False,
-            USE_CREDENTIALS=True,
-            VALIDATE_CERTS=True
-        )
-        
-        self.fm = FastMail(self.mail_conf) if os.getenv("SMTP_USERNAME") else None
+        self.fm = None
+        if settings.SMTP_USERNAME and settings.SMTP_PASSWORD and settings.FROM_EMAIL and settings.SMTP_PORT and settings.SMTP_SERVER:
+            self.mail_conf = ConnectionConfig(
+                MAIL_USERNAME=settings.SMTP_USERNAME,
+                MAIL_PASSWORD=settings.SMTP_PASSWORD,
+                MAIL_FROM=settings.FROM_EMAIL,
+                MAIL_PORT=settings.SMTP_PORT,
+                MAIL_SERVER=settings.SMTP_SERVER,
+                MAIL_STARTTLS=True,
+                MAIL_SSL_TLS=False,
+                USE_CREDENTIALS=True,
+                VALIDATE_CERTS=True
+            )
+            self.fm = FastMail(self.mail_conf)
     
     async def notify_drift(
         self, 
@@ -112,7 +115,7 @@ class NotificationService:
             subject=subject,
             recipients=[email],
             body=html_body,
-            subtype="html"
+            subtype="html",
         )
         
         try:

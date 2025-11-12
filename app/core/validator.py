@@ -35,6 +35,8 @@ class ResponseValidator:
         """
         original_response = response
         current_response = response
+        # Determine if the original request expects JSON
+        original_expects_json = "json" in request.messages[-1].content.lower()
         
         for i in range(self.MAX_RETRIES):
             validation_type = None
@@ -45,7 +47,7 @@ class ResponseValidator:
                 validation_type = 'empty_response'
                 fix_type = 'retry_with_same_prompt'
             # 2. Check for JSON issues
-            elif self._is_json_invalid(current_response, "json" in request.messages[-1].content.lower()):
+            elif self._is_json_invalid(current_response, original_expects_json):
                 validation_type = 'invalid_json'
                 fix_type = 'retry_with_stricter_prompt'
             # 3. Check for truncation
@@ -62,7 +64,7 @@ class ResponseValidator:
 
             if fix_type:
                 # Attempt to fix the issue
-                new_response, success = await self._attempt_fix(validation_type, fix_type, request, i, api_call_function)
+                new_response, success = await self._attempt_fix(validation_type, fix_type, request, i, api_call_function, original_expects_json)
                 
                 if success:
                     # If the fix was successful, we can return the new response immediately
@@ -80,16 +82,18 @@ class ResponseValidator:
 
     def _is_response_empty(self, response: Any) -> bool:
         """Checks if the response content is empty or whitespace."""
-        if not response.choices:
+        if not response.choices or not response.choices[0].message or response.choices[0].message.content is None:
             return True
         content = response.choices[0].message.content
-        return content is None or not content.strip()
+        return not content.strip()
 
     def _is_json_invalid(self, response: Any, expects_json: bool) -> bool:
         """Checks for invalid JSON if the prompt expected it."""
         if not expects_json:
             return False
         try:
+            if not response.choices or not response.choices[0].message or response.choices[0].message.content is None:
+                return True # Consider no content as invalid JSON if JSON was expected
             json.loads(response.choices[0].message.content)
             return False
         except (json.JSONDecodeError, AttributeError, TypeError):
@@ -97,7 +101,7 @@ class ResponseValidator:
 
     def _is_truncated(self, response: Any) -> bool:
         """Checks if the response was likely truncated."""
-        return response.choices[0].finish_reason == 'length'
+        return response.choices and response.choices[0].finish_reason == 'length'
 
     async def _attempt_fix(
         self,
@@ -105,7 +109,8 @@ class ResponseValidator:
         fix_type: str,
         request: schemas.ChatCompletionRequest,
         retry_count: int,
-        api_call_function: Callable[[schemas.ChatCompletionRequest], Awaitable[Any]]
+        api_call_function: Callable[[schemas.ChatCompletionRequest], Awaitable[Any]],
+        original_expects_json: bool
     ) -> Tuple[Optional[Any], bool]:
         """
         Attempts a specific fix, logs the outcome, and retries the API call.
@@ -130,8 +135,9 @@ class ResponseValidator:
             new_response = await api_call_function(modified_request)
             
             # Re-validate the new response to see if the fix worked
+            # Use the original request's context for expects_json
             fix_successful = not (self._is_response_empty(new_response) or
-                                  self._is_json_invalid(new_response, "json" in modified_request.messages[-1].content.lower()) or
+                                  self._is_json_invalid(new_response, original_expects_json) or
                                   self._is_truncated(new_response))
 
             self._log_validation_attempt(validation_type, fix_type, retry_count + 1, fix_successful)
