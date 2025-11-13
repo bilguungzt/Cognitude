@@ -213,6 +213,38 @@ class RateLimitConfig(Base):
     def __repr__(self):
         return f"<RateLimitConfig(org_id={self.organization_id}, minute={self.requests_per_minute}, hour={self.requests_per_hour})>"
 
+
+# ============================================================================
+# Billing & Reconciliation
+# ============================================================================
+
+class ReconciliationReport(Base):
+    """Stores a historical record of billing reconciliation runs."""
+    __tablename__ = "reconciliation_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    
+    start_date = Column(DateTime(timezone=True), nullable=False)
+    end_date = Column(DateTime(timezone=True), nullable=False)
+    
+    internal_cost_usd = Column(Numeric(precision=12, scale=6), nullable=False)
+    external_cost_usd = Column(Numeric(precision=12, scale=6), nullable=False)
+    
+    variance_usd = Column(Numeric(precision=12, scale=6), nullable=False)
+    variance_percent = Column(Float, nullable=False)
+    
+    status = Column(String(50), nullable=False)  # e.g., 'SUCCESS', 'DISCREPANCY_FOUND'
+    notes = Column(Text, nullable=True)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    organization = relationship("Organization")
+
+    def __repr__(self):
+        return f"<ReconciliationReport(id={self.id}, status='{self.status}', variance={self.variance_percent:.2f}%)>"
+
+
 # ============================================================================
 # Autopilot Engine Logging
 # ============================================================================

@@ -124,6 +124,10 @@ async def chat_completions(
     latency_ms = int((time.time() - start_time) * 1000)
     usage = response_data.usage
     
+    # Calculate the cost before logging
+    model_name = autopilot_metadata.get('selected_model', request_body.model)
+    cost = calculate_cost(usage.prompt_tokens, usage.completion_tokens, model_name) or Decimal(0)
+
     llm_request_log = crud.log_llm_request(
         db=db,
         organization_id=organization.id,
@@ -131,7 +135,7 @@ async def chat_completions(
         provider=autopilot_metadata.get('selected_model', request_body.model),
         prompt_tokens=usage.prompt_tokens,
         completion_tokens=usage.completion_tokens,
-        cost_usd=Decimal(0), # Placeholder, will be updated
+        cost_usd=cost,
         latency_ms=latency_ms,
         cache_hit=autopilot_metadata.get('routing_reason') == 'cache_hit',
         cache_key=None, # Placeholder

@@ -218,7 +218,7 @@ class NotificationService:
         for channel in channels:
             config = channel.configuration
             
-            if channel.channel_type == "slack" and config.get("webhook_url"):
+            if getattr(channel, 'channel_type') == "slack" and isinstance(config, dict) and config.get("webhook_url"):
                 title = f"🚨 Cost Alert: {period.title()} Threshold Exceeded"
                 message = (
                     f"Your {period} LLM costs have exceeded the configured threshold.\n\n"
@@ -243,7 +243,7 @@ class NotificationService:
                 ):
                     results["slack"] += 1
             
-            elif channel.channel_type == "email" and config.get("email"):
+            elif getattr(channel, 'channel_type') == "email" and isinstance(config, dict) and config.get("email"):
                 subject = f"🚨 Cost Alert: {period.title()} Threshold Exceeded"
                 
                 body_html = f"""
@@ -302,7 +302,7 @@ class NotificationService:
                 ):
                     results["email"] += 1
             
-            elif channel.channel_type == "webhook" and config.get("webhook_url"):
+            elif getattr(channel, 'channel_type') == "webhook" and isinstance(config, dict) and config.get("webhook_url"):
                 payload = {
                     "event": "cost_threshold_exceeded",
                     "organization_id": organization_id,
@@ -366,7 +366,7 @@ class NotificationService:
         for channel in channels:
             config = channel.configuration
             
-            if channel.channel_type == "slack" and config.get("webhook_url"):
+            if getattr(channel, 'channel_type') == "slack" and isinstance(config, dict) and config.get("webhook_url"):
                 title = f"📊 Daily Summary: {org_name}"
                 message = (
                     f"Here's your LLM usage summary for {datetime.utcnow().strftime('%B %d, %Y')}:\n\n"
@@ -392,7 +392,7 @@ class NotificationService:
                 ):
                     results["slack"] += 1
             
-            elif channel.channel_type == "email" and config.get("email"):
+            elif getattr(channel, 'channel_type') == "email" and isinstance(config, dict) and config.get("email"):
                 subject = f"📊 Daily Summary: {datetime.utcnow().strftime('%B %d, %Y')}"
                 
                 body_html = f"""
@@ -554,4 +554,79 @@ class NotificationService:
             for channel_type, count in org_results["notifications_sent"].items():
                 results["notifications_sent"][channel_type] += count
         
+        return results
+
+    def send_reconciliation_alert(
+        self, report: models.ReconciliationReport
+    ) -> Dict[str, int]:
+        """
+        Sends a billing reconciliation alert to all configured channels.
+        """
+        results = {"slack": 0, "email": 0, "webhook": 0}
+        organization_id = report.organization_id
+
+        channels = (
+            self.db.query(models.AlertChannel)
+            .filter(
+                models.AlertChannel.organization_id == organization_id,
+                models.AlertChannel.is_active == True,
+            )
+            .all()
+        )
+
+        if not channels:
+            return results
+
+        org_name = report.organization.name or f"Organization {organization_id}"
+
+        # Prepare message details
+        variance_usd = report.variance_usd
+        variance_percent = report.variance_percent
+        start_date = report.start_date.strftime("%B %d, %Y")
+        end_date = report.end_date.strftime("%B %d, %Y")
+
+        for channel in channels:
+            config = channel.configuration
+            if getattr(channel, 'channel_type') == "slack" and isinstance(config, dict) and config.get("webhook_url"):
+                title = "Billing Discrepancy Detected"
+                message = (
+                    f"A billing discrepancy was found for the period: {start_date} to {end_date}.\n\n"
+                    f"**Variance:** ${variance_usd:.2f} ({variance_percent:.2f}%)\n"
+                    f"Please review the reconciliation report for more details."
+                )
+                fields = [
+                    {"title": "Organization", "value": org_name, "short": True},
+                    {
+                        "title": "Variance",
+                        "value": f"${variance_usd:.2f} ({variance_percent:.2f}%)",
+                        "short": True,
+                    },
+                ]
+                if self.send_slack_notification(
+                    webhook_url=config["webhook_url"],
+                    title=title,
+                    message=message,
+                    color="#ffaa00",
+                    fields=fields,
+                ):
+                    results["slack"] += 1
+
+            elif getattr(channel, 'channel_type') == "email" and isinstance(config, dict) and config.get("email"):
+                subject = "Billing Discrepancy Detected"
+                body_html = f"""
+                <html><body>
+                    <h2>Billing Discrepancy Detected</h2>
+                    <p>A billing discrepancy was found for <strong>{org_name}</strong> for the period: {start_date} to {end_date}.</p>
+                    <ul>
+                        <li><strong>Internal Cost:</strong> ${report.internal_cost_usd:.2f}</li>
+                        <li><strong>External Cost:</strong> ${report.external_cost_usd:.2f}</li>
+                        <li><strong>Variance:</strong> ${variance_usd:.2f} ({variance_percent:.2f}%)</li>
+                    </ul>
+                    <p>Please review the reconciliation report in your dashboard.</p>
+                </body></html>
+                """
+                if self.send_email_notification(
+                    to_email=config["email"], subject=subject, body_html=body_html
+                ):
+                    results["email"] += 1
         return results
