@@ -3,14 +3,13 @@ aiohttp==3.13.2
 aiosignal==1.4.0
 aiosmtplib==3.0.2
 alembic==1.16.5
-altgraph @ file:///AppleInternal/Library/BuildRoots/4~B7IEugDHS-fAL-bTRqAKCb_qmc84naJzmK7469Q/Library/Caches/com.apple.xbs/Sources/python3/altgraph-0.17.2-py2.py3-none-any.whl
+altgraph
 annotated-doc==0.0.3
 annotated-types==0.7.0
 anyio==4.11.0
 APScheduler==3.11.1
 async-timeout==5.0.1
 attrs==25.4.0
-backports.asyncio.runner==1.2.0
 bcrypt==5.0.0
 blinker==1.9.0
 brotli==1.2.0
@@ -29,7 +28,7 @@ Flask==3.1.2
 flask-cors==6.0.1
 Flask-Login==0.6.3
 frozenlist==1.8.0
-future @ file:///AppleInternal/Library/BuildRoots/4~B7IEugDHS-fAL-bTRqAKCb_qmc84naJzmK7469Q/Library/Caches/com.apple.xbs/Sources/python3/future-0.18.2-py3-none-any.whl
+future
 gevent==25.9.1
 geventhttpclient==2.3.5
 greenlet==3.2.4
@@ -48,7 +47,7 @@ jsonschema==4.25.1
 jsonschema-specifications==2025.9.1
 limits==4.2
 locust==2.34.0
-macholib @ file:///AppleInternal/Library/BuildRoots/4~B7IEugDHS-fAL-bTRqAKCb_qmc84naJzmK7469Q/Library/Caches/com.apple.xbs/Sources/python3/macholib-1.15.2-py2.py3-none-any.whl
+macholib
 Mako==1.3.10
 MarkupSafe==3.0.3
 msgpack==1.1.2
@@ -79,7 +78,7 @@ requests==2.32.5
 rpds-py==0.27.1
 scipy==1.13.1
 sentry-sdk==2.44.0
-six @ file:///AppleInternal/Library/BuildRoots/4~B7IEugDHS-fAL-bTRqAKCb_qmc84naJzmK7469Q/Library/Caches/com.apple.xbs/Sources/python3/six-1.15.0-py2.py3-none-any.whl
+six
 slowapi==0.1.9
 sniffio==1.3.1
 SQLAlchemy==2.0.44

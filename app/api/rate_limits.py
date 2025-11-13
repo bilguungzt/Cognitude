@@ -5,6 +5,9 @@ Endpoints for configuring and monitoring rate limits per organization.
 """
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Response
+import logging
+from datetime import datetime
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
@@ -49,8 +52,8 @@ class RateLimitConfigResponse(BaseModel):
     requests_per_hour: int
     requests_per_day: int
     enabled: bool
-    created_at: str
-    updated_at: str
+    created_at: datetime
+    updated_at: datetime
     
     class Config:
         from_attributes = True
@@ -106,24 +109,44 @@ def get_rate_limit_config(
     }
     ```
     """
-    config = db.query(RateLimitConfig).filter(
-        RateLimitConfig.organization_id == organization.id
-    ).first()
-    
-    if not config:
-        # Create default config
-        config = RateLimitConfig(
-            organization_id=organization.id,
-            requests_per_minute=100,
-            requests_per_hour=3000,
-            requests_per_day=50000,
-            enabled=True
-        )
-        db.add(config)
-        db.commit()
-        db.refresh(config)
-    
-    return config
+    try:
+        config = db.query(RateLimitConfig).filter(
+            RateLimitConfig.organization_id == organization.id
+        ).first()
+
+        if not config:
+            # Create default config if it doesn't exist
+            config = RateLimitConfig(
+                organization_id=organization.id,
+                requests_per_minute=100,
+                requests_per_hour=3000,
+                requests_per_day=50000,
+                enabled=True
+            )
+            db.add(config)
+            db.commit()
+            db.refresh(config)
+
+        return config
+
+    except OperationalError as e:
+        # Common in environments where migrations haven't been applied.
+        logging.warning(f"Database operational error when fetching rate limit config: {e}")
+        # Return a sensible default response so callers (UI) don't crash.
+        now_iso = datetime.utcnow().isoformat() + "Z"
+        return {
+            "id": 0,
+            "organization_id": organization.id,
+            "requests_per_minute": 100,
+            "requests_per_hour": 3000,
+            "requests_per_day": 50000,
+            "enabled": True,
+            "created_at": now_iso,
+            "updated_at": now_iso,
+        }
+    except Exception as e:
+        logging.exception("Unexpected error in get_rate_limit_config")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.put("/config", response_model=RateLimitConfigResponse)
@@ -160,31 +183,38 @@ def update_rate_limit_config(
     **Note:** Changes take effect immediately. Existing rate limit counters
     are not reset - they will continue counting against the new limits.
     """
-    config = db.query(RateLimitConfig).filter(
-        RateLimitConfig.organization_id == organization.id
-    ).first()
-    
-    if not config:
-        # Create new config
-        config = RateLimitConfig(
-            organization_id=organization.id,
-            requests_per_minute=config_data.requests_per_minute,
-            requests_per_hour=config_data.requests_per_hour,
-            requests_per_day=config_data.requests_per_day,
-            enabled=config_data.enabled
-        )
-        db.add(config)
-    else:
-        # Update existing config
-        config.requests_per_minute = config_data.requests_per_minute
-        config.requests_per_hour = config_data.requests_per_hour
-        config.requests_per_day = config_data.requests_per_day
-        config.enabled = config_data.enabled
-    
-    db.commit()
-    db.refresh(config)
-    
-    return config
+    try:
+        config = db.query(RateLimitConfig).filter(
+            RateLimitConfig.organization_id == organization.id
+        ).first()
+
+        if not config:
+            # Create new config
+            config = RateLimitConfig(
+                organization_id=organization.id,
+                requests_per_minute=config_data.requests_per_minute,
+                requests_per_hour=config_data.requests_per_hour,
+                requests_per_day=config_data.requests_per_day,
+                enabled=config_data.enabled
+            )
+            db.add(config)
+        else:
+            # Update existing config
+            update_data = config_data.model_dump(exclude_unset=True)
+            for key, value in update_data.items():
+                setattr(config, key, value)
+
+        db.commit()
+        db.refresh(config)
+
+        return config
+
+    except OperationalError as e:
+        logging.warning(f"Database operational error when updating rate limit config: {e}")
+        raise HTTPException(status_code=503, detail="Database schema not available. Apply migrations and try again.")
+    except Exception as e:
+        logging.exception("Unexpected error in update_rate_limit_config")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/usage", response_model=RateLimitUsageResponse)
@@ -305,19 +335,27 @@ def delete_rate_limit_config(
     }
     ```
     """
-    config = db.query(RateLimitConfig).filter(
-        RateLimitConfig.organization_id == organization.id
-    ).first()
-    
-    if config:
-        db.delete(config)
-        db.commit()
+    try:
+        config = db.query(RateLimitConfig).filter(
+            RateLimitConfig.organization_id == organization.id
+        ).first()
+
+        if config:
+            db.delete(config)
+            db.commit()
+            return {
+                "message": "Rate limit configuration deleted. Reverted to default limits.",
+                "organization_id": organization.id
+            }
+
         return {
-            "message": "Rate limit configuration deleted. Reverted to default limits.",
+            "message": "No custom configuration found. Already using default limits.",
             "organization_id": organization.id
         }
-    
-    return {
-        "message": "No custom configuration found. Already using default limits.",
-        "organization_id": organization.id
-    }
+
+    except OperationalError as e:
+        logging.warning(f"Database operational error when deleting rate limit config: {e}")
+        raise HTTPException(status_code=503, detail="Database schema not available. Apply migrations and try again.")
+    except Exception:
+        logging.exception("Unexpected error in delete_rate_limit_config")
+        raise HTTPException(status_code=500, detail="Internal server error")

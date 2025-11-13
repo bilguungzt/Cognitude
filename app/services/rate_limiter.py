@@ -13,6 +13,7 @@ import logging
 from typing import Optional, Tuple, Dict
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
+import sqlalchemy as sa
 
 from ..models import RateLimitConfig
 from .redis_cache import RedisCache
@@ -73,16 +74,22 @@ class RateLimiter:
             Dict with minute/hour/day limits
         """
         try:
-            config = self.db.query(RateLimitConfig).filter(
+            # Use a select statement to fetch raw column values, bypassing ORM attribute issues.
+            stmt = sa.select(
+                RateLimitConfig.requests_per_minute,
+                RateLimitConfig.requests_per_hour,
+                RateLimitConfig.requests_per_day
+            ).where(
                 RateLimitConfig.organization_id == organization_id,
                 RateLimitConfig.enabled == True
-            ).first()
+            )
+            result = self.db.execute(stmt).first()
             
-            if config:
+            if result:
                 return {
-                    "minute": config.requests_per_minute,
-                    "hour": config.requests_per_hour,
-                    "day": config.requests_per_day
+                    "minute": result.requests_per_minute,
+                    "hour": result.requests_per_hour,
+                    "day": result.requests_per_day
                 }
             
             # Return defaults if no config found
@@ -151,7 +158,7 @@ class RateLimiter:
         Returns:
             Tuple of (is_allowed, current_count, retry_after_seconds)
         """
-        if not self.redis.redis_client:
+        if not self.redis.redis:
             # Redis unavailable - allow request but log warning
             logger.warning(f"Redis unavailable for rate limiting org {organization_id}")
             return True, 0, 0
@@ -160,7 +167,7 @@ class RateLimiter:
             key = self._get_current_window_key(organization_id, window)
             
             # Atomic increment with pipeline
-            pipe = self.redis.redis_client.pipeline()
+            pipe = self.redis.redis.pipeline()
             pipe.incr(key)
             pipe.expire(key, self._get_window_expiry(window))
             results = pipe.execute()
@@ -269,7 +276,7 @@ class RateLimiter:
         Returns:
             Dict with usage and limits for each window
         """
-        if not self.redis.redis_client:
+        if not self.redis.redis:
             return {
                 "minute": {"used": 0, "limit": self._default_limits["minute"]},
                 "hour": {"used": 0, "limit": self._default_limits["hour"]},
@@ -282,7 +289,7 @@ class RateLimiter:
         try:
             for window in ["minute", "hour", "day"]:
                 key = self._get_current_window_key(organization_id, window)
-                count = self.redis.redis_client.get(key)
+                count = self.redis.redis.get(key)
                 used = int(count) if count else 0
                 
                 result[window] = {
@@ -312,7 +319,7 @@ class RateLimiter:
         Returns:
             True if reset successful
         """
-        if not self.redis.redis_client:
+        if not self.redis.redis:
             logger.warning("Redis unavailable for rate limit reset")
             return False
         
@@ -335,7 +342,7 @@ class RateLimiter:
             keys_to_delete.append(day_key)
             
             # Delete all keys
-            self.redis.redis_client.delete(*keys_to_delete)
+            self.redis.redis.delete(*keys_to_delete)
             
             logger.info(f"Rate limits reset for organization {organization_id}")
             return True

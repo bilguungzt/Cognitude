@@ -1,6 +1,7 @@
 from functools import lru_cache
 from typing import Optional
-from pydantic import SecretStr, PostgresDsn, RedisDsn
+from pydantic import SecretStr
+from typing import Any
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
@@ -13,8 +14,9 @@ class Settings(BaseSettings):
     SECRET_KEY: Optional[SecretStr] = None
 
     # Database configurations
-    DATABASE_URL: Optional[PostgresDsn] = None
-    REDIS_URL: Optional[RedisDsn] = None
+    # Use plain strings here to allow flexible URLs in local/dev environments
+    DATABASE_URL: Optional[str] = None
+    REDIS_URL: Optional[str] = None
 
     # Security and JWT settings
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30

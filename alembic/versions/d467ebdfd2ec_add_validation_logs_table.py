@@ -1,6 +1,6 @@
 """Add validation_logs table
 
-Revision ID: d467ebdfd2ec
+Revision ID: d467ebdfd2ee
 Revises: 8f39452e56cf
 Create Date: 2025-11-11 23:43:19.423178+00:00
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'd467ebdfd2ec'
+revision = 'd467ebdfd2ee'
 down_revision = '8f39452e56cf'
 branch_labels = None
 depends_on = None

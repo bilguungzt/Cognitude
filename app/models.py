@@ -36,6 +36,7 @@ class Organization(Base):
     llm_requests = relationship("LLMRequest", back_populates="organization", cascade="all, delete-orphan")
     provider_configs = relationship("ProviderConfig", back_populates="organization", cascade="all, delete-orphan")
     alert_channels = relationship("AlertChannel", back_populates="organization", cascade="all, delete-orphan")
+    rate_limit_config = relationship("RateLimitConfig", back_populates="organization", uselist=False, cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Organization(id={self.id}, name='{self.name}')>"
@@ -206,6 +207,8 @@ class RateLimitConfig(Base):
     enabled = Column(Boolean, server_default='true', nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    organization = relationship("Organization", back_populates="rate_limit_config")
 
     def __repr__(self):
         return f"<RateLimitConfig(org_id={self.organization_id}, minute={self.requests_per_minute}, hour={self.requests_per_hour})>"

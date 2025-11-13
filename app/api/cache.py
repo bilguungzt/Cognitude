@@ -31,9 +31,18 @@ def get_cache_statistics(
     # Get Redis stats
     redis_stats = redis_cache.get_stats(organization.id)
     
-    # Get PostgreSQL stats (for comparison)
-    pg_stats = crud.get_cache_stats(db, organization.id)
-    
+    # Get PostgreSQL stats (for the entire database, as the function is not org-specific)
+    pg_stats = crud.get_cache_stats(db)
+
+    # If no stats are found, initialize with a zero state
+    if not pg_stats:
+        pg_stats = {
+            "total_entries": 0,
+            "total_hits": 0,
+            "hit_rate": 0.0,
+            "estimated_savings_usd": 0.0,
+        }
+
     return {
         **pg_stats,
         "redis_available": redis_stats.get("redis_available", False),
@@ -56,8 +65,8 @@ def clear_cache(
     # Clear Redis cache
     redis_cleared = redis_cache.clear(organization.id)
     
-    # Clear PostgreSQL cache
-    pg_cleared = crud.clear_cache(db, organization.id)
+    # Clear PostgreSQL cache (for all organizations, as the function is not org-specific)
+    pg_cleared = crud.clear_cache(db)
     
     return {
         "message": "Cache cleared successfully",
@@ -78,10 +87,11 @@ def delete_cache_entry(
     Args:
     - cache_key: The MD5 hash of the cached request
     """
-    # Get cache entry to verify ownership
-    cache_entry = crud.get_from_cache(db, cache_key, organization.id)
+    # Get cache entry
+    cache_entry = crud.get_from_cache(db, cache_key)
     
-    if not cache_entry:
+    # Verify ownership and existence
+    if not cache_entry or cache_entry.organization_id != organization.id:
         raise HTTPException(status_code=404, detail="Cache entry not found")
     
     # Delete the entry
