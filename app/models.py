@@ -283,6 +283,7 @@ class SchemaValidationLog(Base):
     id = Column(BigInteger, primary_key=True, index=True)
     llm_request_id = Column(BigInteger, ForeignKey("llm_requests.id", ondelete="SET NULL"), nullable=True, index=True)
     organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    schema_id = Column(Integer, ForeignKey("schemas.id", ondelete="CASCADE"), nullable=True, index=True)
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
 
     # Schema and validation details
@@ -302,3 +303,20 @@ class SchemaValidationLog(Base):
 
     def __repr__(self):
         return f"<SchemaValidationLog(id={self.id}, is_valid={self.is_valid}, success={self.was_successful})>"
+
+
+class Schema(Base):
+    """Stores uploaded JSON schemas."""
+    __tablename__ = "schemas"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(100), nullable=False, index=True)
+    schema_data = Column(JSONB, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    is_active = Column(Boolean, server_default='true', nullable=False)
+
+    organization = relationship("Organization")
+
+    def __repr__(self):
+        return f"<Schema(id={self.id}, name='{self.name}')>"

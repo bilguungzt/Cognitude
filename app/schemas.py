@@ -227,13 +227,24 @@ class SchemaValidationLog(SchemaValidationLogBase):
         from_attributes = True
 
 
+class SchemaCreate(BaseModel):
+    """Schema for creating a new schema."""
+    name: str
+    schema_data: Dict[str, Any]
+
+
+class ResponseMessage(BaseModel):
+    """Standard message response."""
+    message: str
+
+
 # ============================================================================
 # Dashboard Schemas
 # ============================================================================
 
-class SchemaStats(BaseModel):
+class SchemaStat(BaseModel):
     """Statistics for a single schema."""
-    schema_hash: str
+    schema_name: str
     total_attempts: int
     failure_rate: float
     avg_retries: float
@@ -242,9 +253,20 @@ class SchemaStats(BaseModel):
         from_attributes = True
 
 
+class Schema(BaseModel):
+    """Schema for schema response."""
+    id: int
+    name: str
+    schema_data: Dict[str, Any]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class TopSchemaStatsResponse(BaseModel):
     """Response model for top 5 most used schemas."""
-    top_schemas: List[SchemaStats]
+    top_5_most_used: List[SchemaStat]
 
 class DashboardSummaryStats(BaseModel):
     """Summary statistics for the dashboard."""

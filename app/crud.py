@@ -4,7 +4,7 @@ Fixed version with proper SQLAlchemy type handling.
 """
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
-from sqlalchemy import func, Integer, cast
+from sqlalchemy import func, Integer, cast, case
 from decimal import Decimal
 import hashlib
 import json
@@ -484,3 +484,68 @@ def create_schema_validation_log(
     db.commit()
     db.refresh(db_log)
     return db_log
+
+
+def create_schema(db: Session, name: str, schema_data: Dict[str, Any], organization_id: int) -> models.Schema:
+    """Create a new schema."""
+    db_schema = models.Schema(
+        name=name,
+        schema_data=schema_data,
+        organization_id=organization_id,
+        is_active=True
+    )
+    db.add(db_schema)
+    db.commit()
+    db.refresh(db_schema)
+    return db_schema
+
+
+def get_schema_stats(db: Session, organization_id: int) -> List[Dict[str, Any]]:
+    """
+    Get schema statistics including usage and failure rates for all active schemas.
+    Simplified version to avoid complex SQL queries.
+    """
+    from sqlalchemy import func
+
+    # Get all active schemas for the organization
+    active_schemas = db.query(models.Schema).filter(
+        models.Schema.organization_id == organization_id,
+        models.Schema.is_active == True
+    ).all()
+
+    if not active_schemas:
+        return []
+
+    results = []
+    for schema in active_schemas:
+        # Step 2: Get stats for each schema individually
+        stats = db.query(
+            func.count(models.SchemaValidationLog.id).label("total_attempts"),
+            func.sum(case((models.SchemaValidationLog.is_valid == False, 1), else_=0)).label("failure_count"),
+            func.avg(models.SchemaValidationLog.retry_count).label("avg_retries")
+        ).filter(
+            models.SchemaValidationLog.organization_id == organization_id,
+            models.SchemaValidationLog.schema_id == schema.id
+        ).first()
+
+        total_attempts = stats.total_attempts if stats and stats.total_attempts is not None else 0
+        failure_count = stats.failure_count if stats and stats.failure_count is not None else 0
+        failure_rate = failure_count / total_attempts if total_attempts > 0 else 0.0
+        avg_retries = stats.avg_retries if stats and stats.avg_retries is not None else 0.0
+
+        results.append({
+            "schema_name": schema.name,
+            "total_attempts": total_attempts,
+            "failure_rate": failure_rate,
+            "avg_retries": avg_retries
+        })
+        
+    return results
+
+
+def get_failed_validation_logs(db: Session, organization_id: int) -> List[models.SchemaValidationLog]:
+    """Get failed validation logs."""
+    return db.query(models.SchemaValidationLog).filter(
+        models.SchemaValidationLog.organization_id == organization_id,
+        models.SchemaValidationLog.is_valid == False
+    ).all()

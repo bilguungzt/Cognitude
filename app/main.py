@@ -8,7 +8,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 import time
-from .api import auth, proxy, analytics, providers, cache, smart_routing, alerts, rate_limits, monitoring, dashboard
+from .api import auth, proxy, analytics, providers, cache, smart_routing, alerts, rate_limits, monitoring, dashboard, schemas
 from .api.monitoring import request_count, request_latency
 from .database import Base, engine
 from .services.background_tasks import scheduler
@@ -30,7 +30,6 @@ if settings.SENTRY_DSN:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Note: Run 'alembic upgrade head' to apply database migrations
-    Base.metadata.create_all(bind=engine)
     scheduler.start()
     yield
     scheduler.shutdown()
@@ -107,7 +106,7 @@ curl -X POST http://your-server:8000/v1/chat/completions \\
 # Configure CORS for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for simplicity
+    allow_origins=["http://localhost:5175"],  # Allow frontend origin
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -138,6 +137,7 @@ app.include_router(alerts.router)  # Alert management endpoints
 app.include_router(rate_limits.router)  # Rate limiting configuration
 app.include_router(monitoring.router) # Monitoring endpoints
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
+app.include_router(schemas.router, prefix="/api/schemas", tags=["schemas"])
 
 @app.get("/")
 def read_root():
