@@ -121,7 +121,8 @@ import secrets
 
 db = SessionLocal()
 api_key = secrets.token_urlsafe(32)
-org = Organization(name='Admin', api_key=api_key)
+hashed_key = Organization.hash_api_key(api_key)
+org = Organization(name='Admin', api_key_hash=hashed_key)
 db.add(org)
 db.commit()
 print(f"✅ Admin API Key: {api_key}")
@@ -225,7 +226,7 @@ cat /tmp/admin_key.txt
 
 ```bash
 # Replace YOUR_API_KEY with the key from step 1
-curl -H "X-API-Key: YOUR_API_KEY" http://165.22.158.75:8000/models/
+curl -H "X-API-Key: YOUR_API_KEY" http://165.22.158.75:8000/v1/models
 ```
 
 ### 3. Update Frontend Configuration
