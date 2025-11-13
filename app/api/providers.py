@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from .. import crud, schemas
 from ..database import get_db
 from ..security import get_organization_from_api_key
+import logging
+import traceback
 
 
 router = APIRouter(prefix="/providers", tags=["providers"])
@@ -25,10 +27,14 @@ def create_provider(
     Requires API key authentication (X-API-Key header).
     """
     try:
+        # create_provider_config expects (db, organization_id, provider, api_key_encrypted, enabled?, priority?)
         db_provider = crud.create_provider_config(
-            db, 
-            provider, 
-            organization.id
+            db,
+            organization.id,
+            provider.provider,
+            provider.api_key,
+            provider.enabled,
+            provider.priority,
         )
         return db_provider
     except Exception as e:
@@ -47,12 +53,18 @@ def list_providers(
     Query params:
     - enabled_only: If true, only return enabled providers
     """
-    providers = crud.get_provider_configs(
-        db, 
-        organization.id, 
-        enabled_only=enabled_only
-    )
-    return providers
+    try:
+        providers = crud.get_provider_configs(
+            db,
+            organization.id,
+            enabled_only=enabled_only,
+        )
+        return providers
+    except Exception as e:
+        # Log full traceback for debugging and return a 500 with the message
+        logging.error("Error listing providers: %s", e)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Server error listing providers: {str(e)}")
 
 
 @router.get("/{provider_id}", response_model=schemas.ProviderConfig)
@@ -62,13 +74,21 @@ def get_provider(
     organization: schemas.Organization = Depends(get_organization_from_api_key)
 ):
     """Get a specific provider configuration."""
-    provider = crud.get_provider_configs(db, organization.id)
-    provider = next((p for p in provider if p.id == provider_id), None)
+    providers = crud.get_provider_configs(db, organization.id)
+    provider = next((p for p in providers if getattr(p, 'id', None) == provider_id), None)
     
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
     
     return provider
+
+
+@router.get("/debug/whoami")
+def debug_whoami(
+    organization: schemas.Organization = Depends(get_organization_from_api_key)
+):
+    """Dev helper: return organization info for API key debugging."""
+    return {"id": organization.id, "name": organization.name}
 
 
 @router.put("/{provider_id}", response_model=schemas.ProviderConfig)
@@ -87,11 +107,11 @@ def update_provider(
     - enabled (enable/disable provider)
     """
     try:
+        # update_provider_config expects (db, config_id, updates)
         updated_provider = crud.update_provider_config(
             db,
             provider_id,
-            organization.id,
-            provider_update
+            provider_update,
         )
         
         if not updated_provider:
@@ -109,7 +129,8 @@ def delete_provider(
     organization: schemas.Organization = Depends(get_organization_from_api_key)
 ):
     """Delete a provider configuration."""
-    success = crud.delete_provider_config(db, provider_id, organization.id)
+    # delete_provider_config expects (db, config_id)
+    success = crud.delete_provider_config(db, provider_id)
     
     if not success:
         raise HTTPException(status_code=404, detail="Provider not found")

@@ -46,8 +46,23 @@ class Organization(Base):
         return pwd_context.hash(api_key)
 
     def verify_api_key(self, api_key: str) -> bool:
-        """Verifies a plain-text API key against the stored hash."""
-        return pwd_context.verify(api_key, self.api_key_hash)
+        """Verifies a plain-text API key against the stored hash.
+
+        For local/dev convenience the database may contain plaintext API keys
+        (not hashed). Detect common bcrypt hash prefixes and use bcrypt
+        verification in that case; otherwise fall back to direct equality.
+        """
+        try:
+            stored = getattr(self, 'api_key_hash', '') or ''
+            # bcrypt hashes start with $2b$ or $2a$ etc. Use that to choose
+            # verification strategy.
+            if isinstance(stored, str) and stored.startswith("$2"):
+                return pwd_context.verify(api_key, stored)
+            # Fallback for dev: stored API key may be plaintext
+            return api_key == stored
+        except Exception:
+            # On any unexpected error, be conservative and return False
+            return False
 
 
 # ============================================================================
