@@ -1,13 +1,33 @@
 #!/bin/bash
 set -e
 
-echo "======================================================================"
-echo "🚀 Deploying Cognitude to Production (165.22.158.75)"
-echo "======================================================================"
-
+# --- Configuration ---
 SERVER="root@165.22.158.75"
 APP_DIR="/opt/cognitude"
+SSH_PASSWORD="GAzette4ever"
+# ---------------------
 
+echo "======================================================================"
+echo "🚀 Deploying Cognitude to Production ($SERVER)"
+echo "======================================================================"
+
+# Check for sshpass and install if not found
+if ! command -v sshpass &> /dev/null; then
+    echo "sshpass not found. Attempting to install..."
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        if command -v brew &> /dev/null; then
+            brew install hudochenkov/sshpass/sshpass
+        else
+            echo "Error: Homebrew not found. Please install sshpass manually."
+            exit 1
+        fi
+    else
+        # Assuming Debian/Ubuntu
+        sudo apt-get update && sudo apt-get install -y sshpass
+    fi
+fi
+  
 echo ""
 echo "📦 Step 1: Preparing deployment files..."
 # Create deployment package
@@ -27,11 +47,11 @@ echo "✅ Deployment package created"
 
 echo ""
 echo "📤 Step 2: Uploading to server..."
-scp cognitude_deploy.tar.gz $SERVER:/tmp/
-
+sshpass -p "$SSH_PASSWORD" scp cognitude_deploy.tar.gz $SERVER:/tmp/
+  
 echo ""
 echo "🔧 Step 3: Setting up on server..."
-ssh $SERVER << 'ENDSSH'
+sshpass -p "$SSH_PASSWORD" ssh $SERVER << 'ENDSSH'
 set -e
 
 # Stop existing services if any
@@ -68,7 +88,7 @@ ENDSSH
 
 echo ""
 echo "⚙️  Step 4: Configuring environment..."
-ssh $SERVER << 'ENDSSH'
+sshpass -p "$SSH_PASSWORD" ssh $SERVER << 'ENDSSH'
 cd /opt/cognitude
 
 # Create .env file if it doesn't exist
@@ -162,7 +182,7 @@ ENDSSH
 
 echo ""
 echo "🐳 Step 5: Starting services..."
-ssh $SERVER << 'ENDSSH'
+sshpass -p "$SSH_PASSWORD" ssh $SERVER << 'ENDSSH'
 cd /opt/cognitude
 
 # Build and start services
@@ -194,7 +214,7 @@ echo "💚 Health Check: http://165.22.158.75:8000/health"
 echo ""
 echo "📝 Next steps:"
 echo "   1. Add your API keys to /opt/cognitude/.env on the server"
-echo "   2. Restart services: ssh $SERVER 'cd /opt/cognitude && docker-compose -f docker-compose.prod.yml restart'"
+echo "   2. Restart services: sshpass -p \"$SSH_PASSWORD\" ssh $SERVER 'cd /opt/cognitude && docker-compose -f docker-compose.prod.yml restart'"
 echo "   3. Set up Nginx reverse proxy (optional)"
 echo "   4. Configure SSL with Let's Encrypt (optional)"
 echo ""

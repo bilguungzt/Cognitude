@@ -6,7 +6,7 @@ from app.database import get_db
 from app.security import get_organization_from_api_key
 from app.core.schema_enforcer import validate_user_schema
 
-router = APIRouter()
+router = APIRouter(prefix="/schemas", tags=["schemas"])
 
 @router.post("/upload", response_model=schemas.ResponseMessage)
 def upload_schema(

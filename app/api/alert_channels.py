@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from .. import models, crud
 from ..security import get_db, get_organization_from_api_key
 
-router = APIRouter()
+router = APIRouter(prefix="/alert-channels", tags=["alert-channels"])
 
 
 class AlertChannelCreate(BaseModel):

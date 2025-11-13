@@ -1,14 +1,15 @@
+
 import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 import time
-from .api import auth, proxy, analytics, providers, cache, smart_routing, alerts, rate_limits, monitoring, dashboard, schemas
+from .api import auth, proxy, analytics, providers, cache, smart_routing, alerts, rate_limits, monitoring, dashboard, schemas, public_benchmarks, alert_channels
 from .api.monitoring import request_count, request_latency
 from .database import Base, engine
 from .services.background_tasks import scheduler
@@ -106,7 +107,7 @@ curl -X POST http://your-server:8000/v1/chat/completions \\
 # Configure CORS for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5175"],  # Allow frontend origin
+    allow_origins=["*"],  # Allow all origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -126,23 +127,31 @@ async def track_metrics(request: Request, call_next):
     
     return response
 
-# Include routers
-app.include_router(auth.router, prefix="/auth", tags=["auth"])
-app.include_router(proxy.router)  # No prefix - uses /v1 from router
-app.include_router(providers.router)  # Uses /providers prefix from router
-app.include_router(cache.router)  # Uses /cache prefix from router
-app.include_router(analytics.router)  # Uses /analytics prefix from router
-app.include_router(smart_routing.router)  # Smart routing endpoints
-app.include_router(alerts.router)  # Alert management endpoints
-app.include_router(rate_limits.router)  # Rate limiting configuration
-app.include_router(monitoring.router) # Monitoring endpoints
-app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
-app.include_router(schemas.router, prefix="/api/schemas", tags=["schemas"])
+# Include routers with a global prefix
+api_router = APIRouter(prefix="/api/v1")
+api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+api_router.include_router(proxy.router)
+api_router.include_router(providers.router)
+api_router.include_router(cache.router)
+api_router.include_router(analytics.router)
+api_router.include_router(smart_routing.router)
+api_router.include_router(alerts.router)
+api_router.include_router(rate_limits.router)
+api_router.include_router(monitoring.router)
+api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
+api_router.include_router(schemas.router, prefix="/schemas", tags=["schemas"])
+api_router.include_router(public_benchmarks.router)
+api_router.include_router(alert_channels.router, prefix="/alert-channels", tags=["alert-channels"])
+app.include_router(api_router)
 
 @app.get("/")
 def read_root():
+    """
+    API root endpoint - returns basic API information.
+    """
     return {
-        "message": "Cognitude LLM Proxy",
+        "name": "Cognitude LLM Proxy",
         "version": "1.0.0",
+        "status": "active",
         "docs": "/docs"
     }

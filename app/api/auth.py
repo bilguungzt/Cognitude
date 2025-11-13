@@ -1,14 +1,14 @@
 from typing import cast
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from .. import crud, schemas, security
+from .. import crud, schemas, security, models
 from ..security import get_db
 
-router = APIRouter()
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post(
@@ -82,3 +82,39 @@ def register_organization(
             api_key=api_key,
             created_at=cast(datetime, db_organization.created_at),
         )
+
+
+@router.post("/token")
+def login(
+    api_key: str = Body(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Authenticate using API key and return a session token.
+    """
+    organization = security.get_organization_from_api_key(api_key, db)
+    if not organization:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid API Key"
+        )
+    
+    # This is a placeholder for a real session token implementation
+    return {
+        "access_token": api_key,
+        "token_type": "bearer"
+    }
+
+
+@router.get("/me")
+def get_current_user(
+    db: Session = Depends(get_db),
+    organization: schemas.Organization = Depends(security.get_organization_from_api_key)
+):
+    """
+    Get current authenticated user information.
+    """
+    return {
+        "organization_id": organization.id,
+        "organization_name": organization.name,
+    }

@@ -2,9 +2,11 @@
 Alert management API endpoints.
 """
 from typing import List, Optional
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr, HttpUrl, field_validator
+import re
 
 from .. import models, schemas
 from ..database import get_db
@@ -23,6 +25,40 @@ class AlertChannelCreate(BaseModel):
     """Schema for creating an alert channel."""
     channel_type: str = Field(..., description="Channel type: 'slack', 'email', or 'webhook'")
     configuration: dict = Field(..., description="Channel configuration (webhook_url, email, etc.)")
+    
+    @field_validator('channel_type')
+    @classmethod
+    def validate_channel_type(cls, v):
+        if v not in ["slack", "email", "webhook"]:
+            raise ValueError("Must be 'slack', 'email', or 'webhook'")
+        return v
+    
+    @field_validator('configuration')
+    @classmethod
+    def validate_configuration(cls, v, info):
+        channel_type = info.data.get('channel_type')
+        
+        if channel_type == "slack":
+            if "webhook_url" not in v:
+                raise ValueError("Slack channel requires 'webhook_url'")
+            if not v["webhook_url"].startswith("https://hooks.slack.com"):
+                raise ValueError("Invalid Slack webhook URL")
+        
+        elif channel_type == "email":
+            if "email" not in v:
+                raise ValueError("Email channel requires 'email'")
+            # Basic email validation
+            email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+            if not re.match(email_pattern, v["email"]):
+                raise ValueError("Invalid email address")
+        
+        elif channel_type == "webhook":
+            if "webhook_url" not in v:
+                raise ValueError("Webhook channel requires 'webhook_url'")
+            if not v["webhook_url"].startswith(("http://", "https://")):
+                raise ValueError("Invalid webhook URL")
+        
+        return v
 
 
 class AlertChannelResponse(BaseModel):
@@ -40,6 +76,13 @@ class AlertConfigCreate(BaseModel):
     """Schema for creating an alert configuration."""
     alert_type: str = Field(..., description="Alert type: 'daily_cost', 'weekly_cost', 'monthly_cost'")
     threshold_usd: float = Field(..., description="Cost threshold in USD", gt=0)
+    
+    @field_validator('alert_type')
+    @classmethod
+    def validate_alert_type(cls, v):
+        if v not in ["daily_cost", "weekly_cost", "monthly_cost"]:
+            raise ValueError("Must be 'daily_cost', 'weekly_cost', or 'monthly_cost'")
+        return v
 
 
 class AlertConfigResponse(BaseModel):
@@ -48,7 +91,16 @@ class AlertConfigResponse(BaseModel):
     alert_type: str
     threshold_usd: float
     enabled: bool
-    last_triggered: Optional[str]
+    last_triggered: Optional[str] = None
+    
+    @field_validator('last_triggered', mode='before')
+    @classmethod
+    def convert_datetime(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, datetime):
+            return v.isoformat()
+        return str(v)
     
     class Config:
         from_attributes = True
@@ -102,43 +154,27 @@ def create_alert_channel(
        ```
        Will receive JSON POST requests with alert data
     """
-    # Validate channel type
-    if channel.channel_type not in ["slack", "email", "webhook"]:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid channel_type. Must be 'slack', 'email', or 'webhook'"
+    try:
+        # Create channel
+        db_channel = models.AlertChannel(
+            organization_id=organization.id,
+            channel_type=channel.channel_type,
+            configuration=channel.configuration,
+            is_active=True
         )
+        
+        db.add(db_channel)
+        db.commit()
+        db.refresh(db_channel)
+        
+        return db_channel
     
-    # Validate configuration
-    if channel.channel_type == "slack" and "webhook_url" not in channel.configuration:
+    except Exception as e:
+        db.rollback()
         raise HTTPException(
-            status_code=400,
-            detail="Slack channel requires 'webhook_url' in configuration"
+            status_code=500,
+            detail=f"Failed to create alert channel: {str(e)}"
         )
-    if channel.channel_type == "email" and "email" not in channel.configuration:
-        raise HTTPException(
-            status_code=400,
-            detail="Email channel requires 'email' in configuration"
-        )
-    if channel.channel_type == "webhook" and "webhook_url" not in channel.configuration:
-        raise HTTPException(
-            status_code=400,
-            detail="Webhook channel requires 'webhook_url' in configuration"
-        )
-    
-    # Create channel
-    db_channel = models.AlertChannel(
-        organization_id=organization.id,
-        channel_type=channel.channel_type,
-        configuration=channel.configuration,
-        is_active=True
-    )
-    
-    db.add(db_channel)
-    db.commit()
-    db.refresh(db_channel)
-    
-    return db_channel
 
 
 @router.get("/channels", response_model=List[AlertChannelResponse])
@@ -173,17 +209,24 @@ def delete_alert_channel(
     if not channel:
         raise HTTPException(status_code=404, detail="Alert channel not found")
     
-    db.delete(channel)
-    db.commit()
+    try:
+        db.delete(channel)
+        db.commit()
+        return {"message": "Alert channel deleted"}
     
-    return {"message": "Alert channel deleted"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete alert channel: {str(e)}"
+        )
 
 
 # ============================================================================
 # Alert Configuration Endpoints
 # ============================================================================
 
-@router.post("/configs", response_model=AlertConfigResponse)
+@router.post("/config", response_model=AlertConfigResponse)
 def create_alert_config(
     config: AlertConfigCreate,
     db: Session = Depends(get_db),
@@ -209,13 +252,6 @@ def create_alert_config(
     
     **Note**: You must have at least one alert channel configured to receive notifications.
     """
-    # Validate alert type
-    if config.alert_type not in ["daily_cost", "weekly_cost", "monthly_cost"]:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid alert_type. Must be 'daily_cost', 'weekly_cost', or 'monthly_cost'"
-        )
-    
     # Check if alert config already exists for this type
     existing = db.query(models.AlertConfig).filter(
         models.AlertConfig.organization_id == organization.id,
@@ -228,22 +264,30 @@ def create_alert_config(
             detail=f"Alert config for '{config.alert_type}' already exists. Delete it first or update the threshold."
         )
     
-    # Create config
-    db_config = models.AlertConfig(
-        organization_id=organization.id,
-        alert_type=config.alert_type,
-        threshold_usd=config.threshold_usd,
-        enabled=True
-    )
+    try:
+        # Create config
+        db_config = models.AlertConfig(
+            organization_id=organization.id,
+            alert_type=config.alert_type,
+            threshold_usd=config.threshold_usd,
+            enabled=True
+        )
+        
+        db.add(db_config)
+        db.commit()
+        db.refresh(db_config)
+        
+        return db_config
     
-    db.add(db_config)
-    db.commit()
-    db.refresh(db_config)
-    
-    return db_config
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create alert config: {str(e)}"
+        )
 
 
-@router.get("/configs", response_model=List[AlertConfigResponse])
+@router.get("/config", response_model=List[AlertConfigResponse])
 def list_alert_configs(
     db: Session = Depends(get_db),
     organization: schemas.Organization = Depends(get_organization_from_api_key)
@@ -258,119 +302,35 @@ def list_alert_configs(
     return configs
 
 
-@router.delete("/configs/{config_id}")
-def delete_alert_config(
-    config_id: int,
-    db: Session = Depends(get_db),
-    organization: schemas.Organization = Depends(get_organization_from_api_key)
-):
-    """
-    Delete an alert configuration.
-    """
-    config = db.query(models.AlertConfig).filter(
-        models.AlertConfig.id == config_id,
-        models.AlertConfig.organization_id == organization.id
-    ).first()
-    
-    if not config:
-        raise HTTPException(status_code=404, detail="Alert config not found")
-    
-    db.delete(config)
-    db.commit()
-    
-    return {"message": "Alert config deleted"}
 
 
 # ============================================================================
 # Testing & Manual Triggering
 # ============================================================================
 
-@router.post("/test/{channel_id}")
-def test_alert_channel(
-    channel_id: int,
+
+@router.put("/config/{config_id}", response_model=AlertConfigResponse)
+def update_alert_config(
+    config_id: int,
+    config: AlertConfigCreate,
     db: Session = Depends(get_db),
     organization: schemas.Organization = Depends(get_organization_from_api_key)
 ):
     """
-    Send a test notification to an alert channel.
-    
-    Useful for verifying that your channel configuration is working correctly.
+    Update an existing alert configuration.
     """
-    channel = db.query(models.AlertChannel).filter(
-        models.AlertChannel.id == channel_id,
-        models.AlertChannel.organization_id == organization.id
+    db_config = db.query(models.AlertConfig).filter(
+        models.AlertConfig.id == config_id,
+        models.AlertConfig.organization_id == organization.id
     ).first()
-    
-    if not channel:
-        raise HTTPException(status_code=404, detail="Alert channel not found")
-    
-    notification_service = NotificationService(db)
-    config = channel.configuration
-    success = False
-    
-    if channel.channel_type == "slack" and config.get("webhook_url"):
-        success = notification_service.send_slack_notification(
-            webhook_url=config["webhook_url"],
-            title="🧪 Test Notification",
-            message="This is a test notification from Cognitude. Your Slack integration is working correctly!",
-            color="#36a64f",
-            fields=[
-                {"title": "Organization", "value": organization.name, "short": True},
-                {"title": "Channel Type", "value": "Slack", "short": True}
-            ]
-        )
-    
-    elif channel.channel_type == "email" and config.get("email"):
-        success = notification_service.send_email_notification(
-            to_email=config["email"],
-            subject="🧪 Test Notification from Cognitude",
-            body_html="""
-            <html>
-            <body style="font-family: Arial, sans-serif;">
-                <h2 style="color: #2e7d32;">🧪 Test Notification</h2>
-                <p>This is a test notification from Cognitude.</p>
-                <p>Your email integration is working correctly!</p>
-            </body>
-            </html>
-            """
-        )
-    
-    elif channel.channel_type == "webhook" and config.get("webhook_url"):
-        success = notification_service.send_webhook_notification(
-            webhook_url=config["webhook_url"],
-            payload={
-                "event": "test_notification",
-                "organization_name": organization.name,
-                "message": "This is a test notification from Cognitude"
-            }
-        )
-    
-    if success:
-        return {"message": "Test notification sent successfully"}
-    else:
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to send test notification. Check your configuration."
-        )
 
+    if not db_config:
+        raise HTTPException(status_code=404, detail="Alert config not found")
 
-@router.post("/check")
-def check_cost_alerts(
-    db: Session = Depends(get_db),
-    organization: schemas.Organization = Depends(get_organization_from_api_key)
-):
-    """
-    Manually check and trigger cost alerts if thresholds are exceeded.
-    
-    This is useful for testing your alert configurations. In production,
-    this is automatically called by a background scheduler.
-    """
-    notification_service = NotificationService(db)
-    results = notification_service.check_and_send_cost_alerts(organization.id)
-    
-    return {
-        "message": "Cost alerts checked",
-        "alerts_checked": results["alerts_checked"],
-        "alerts_triggered": results["alerts_triggered"],
-        "notifications_sent": results["notifications_sent"]
-    }
+    update_data = config.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_config, key, value)
+    db.commit()
+    db.refresh(db_config)
+    return db_config
+

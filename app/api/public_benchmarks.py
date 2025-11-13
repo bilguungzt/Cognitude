@@ -12,7 +12,7 @@ from app.database import get_db
 from app.models import LLMRequest
 from app.services.redis_cache import redis_cache
 
-router = APIRouter()
+router = APIRouter(prefix="/v1", tags=["public"])
 
 class BenchmarkMetrics(BaseModel):
     avg_cost: float = Field(..., description="Average cost of requests.")
