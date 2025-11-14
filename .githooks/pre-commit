@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Run migration sanitizer on staged alembic migration files.
+# If any staged files under alembic/versions exist, run the check and fail the commit
+# if problems are found. This requires contributors to run `scripts/install-git-hooks.sh`
+# once after cloning (or to enable hooks by setting git config core.hooksPath .githooks).
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^alembic/versions/.*\.py$' || true)
+if [ -n "$STAGED" ]; then
+  echo "Running migration sanitizer on staged migration files..."
+  # run the project script in check mode
+  python3 scripts/clean_migrations.py --check
+  if [ $? -ne 0 ]; then
+    echo "Migration sanitizer found issues. Run 'python3 scripts/clean_migrations.py --fix' to attempt fixes, then 'git add' the fixed files and retry the commit."
+    exit 1
+  fi
+fi
+
+exit 0
