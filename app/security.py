@@ -31,6 +31,10 @@ api_key_header = APIKeyHeader(name="X-API-Key")
 
 def get_password_hash(password: str) -> str:
     """Hash a password using bcrypt for secure storage."""
+    # bcrypt has a 72-byte limit, truncate if necessary
+    password_bytes = password.encode('utf-8')
+    if len(password_bytes) > 72:
+        password = password_bytes[:72].decode('utf-8', errors='ignore')
     return pwd_context.hash(password)
 
 
@@ -43,9 +47,10 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 def create_api_key() -> str:
-    # Generate a shorter token to stay within bcrypt's 72-byte limit
-    # token_urlsafe(24) produces ~32 characters, well under the 72-byte limit
-    return secrets.token_urlsafe(24)
+    # Generate a token that stays within bcrypt's 72-byte limit
+    # token_urlsafe(22) produces ~30 characters, well under the 72-byte limit
+    # This prevents bcrypt "password too long" errors
+    return secrets.token_urlsafe(16)
 
 # get_db() function removed - use the one from app.database instead
 
