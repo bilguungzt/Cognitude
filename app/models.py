@@ -15,8 +15,8 @@ from sqlalchemy.dialects.postgresql import JSONB
 from .database import Base
 from passlib.context import CryptContext
 
-# Setup bcrypt for hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Setup password hashing with PBKDF2 (more reliable than bcrypt)
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 
 # ============================================================================
