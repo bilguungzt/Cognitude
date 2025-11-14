@@ -64,3 +64,4 @@ ollama/
 # Project specific
 .aider*
 frontend/
+._*._*
