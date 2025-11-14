@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     # Use plain strings here to allow flexible URLs in local/dev environments
     DATABASE_URL: Optional[str] = None
     REDIS_URL: Optional[str] = None
+    REDIS_TOKEN: Optional[str] = None
+    SUPABASE_URL: Optional[str] = None
+    SUPABASE_ANON_KEY: Optional[str] = None
 
     # Security and JWT settings
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30

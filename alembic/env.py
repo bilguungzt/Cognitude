@@ -43,11 +43,20 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    # Use DATABASE_URL from environment if available, fallback to config
+    database_url = os.getenv("DATABASE_URL")
+    
+    if database_url:
+        # Use the DATABASE_URL from environment
+        from sqlalchemy import create_engine
+        connectable = create_engine(database_url)
+    else:
+        # Fallback to alembic.ini configuration
+        connectable = engine_from_config(
+            config.get_section(config.config_ini_section, {}),
+            prefix="sqlalchemy.",
+            poolclass=pool.NullPool,
+        )
 
     with connectable.connect() as connection:
         context.configure(

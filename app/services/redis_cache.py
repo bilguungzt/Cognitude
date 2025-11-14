@@ -25,10 +25,31 @@ class RedisCache:
     
     def __init__(self):
         """Initialize Redis connection."""
-        self.redis: Optional[redis.Redis] = None
+        self.redis = None
         self.available = False
-        if settings.REDIS_URL:
+        
+        # Try Upstash Redis first if token is provided
+        if settings.REDIS_TOKEN and settings.REDIS_URL:
             try:
+                from upstash_redis import Redis as UpstashRedis
+                self.redis = UpstashRedis(
+                    url=str(settings.REDIS_URL),
+                    token=str(settings.REDIS_TOKEN)
+                )
+                # Test connection
+                self.redis.ping()
+                self.available = True
+                print("✅ Upstash Redis connected successfully")
+                return
+            except Exception as e:
+                print(f"❌ Upstash Redis connection failed: {e}")
+                self.redis = None
+                self.available = False
+        
+        # Fallback to traditional Redis
+        if settings.REDIS_URL and not self.available:
+            try:
+                import redis
                 self.redis = redis.from_url(
                     str(settings.REDIS_URL),
                     decode_responses=True,
@@ -38,7 +59,9 @@ class RedisCache:
                 # Test connection
                 self.redis.ping()
                 self.available = True
-            except (redis.ConnectionError, redis.TimeoutError):
+                print("✅ Traditional Redis connected successfully")
+            except (redis.ConnectionError, redis.TimeoutError) as e:
+                print(f"❌ Traditional Redis connection failed: {e}")
                 self.redis = None
                 self.available = False
     

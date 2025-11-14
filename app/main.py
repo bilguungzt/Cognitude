@@ -42,8 +42,7 @@ async def lifespan(app: FastAPI):
         result = subprocess.run(
             [sys.executable, "-m", "alembic", "upgrade", "head"],
             capture_output=True,
-            text=True,
-            cwd="/Users/billy/Documents/Projects/cognitude_mvp"
+            text=True
         )
         
         if result.returncode == 0:

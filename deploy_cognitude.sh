@@ -7,6 +7,7 @@ echo "======================================================================"
 
 SERVER="root@165.22.158.75"
 APP_DIR="/opt/cognitude"
+SSH_PASS="GAzette4ever"
 
 echo ""
 echo "📦 Step 1: Preparing deployment files..."
@@ -27,11 +28,11 @@ echo "✅ Deployment package created"
 
 echo ""
 echo "📤 Step 2: Uploading to server..."
-scp cognitude_deploy.tar.gz $SERVER:/tmp/
+sshpass -p "$SSH_PASS" scp cognitude_deploy.tar.gz $SERVER:/tmp/
 
 echo ""
 echo "🔧 Step 3: Setting up on server..."
-ssh $SERVER << 'ENDSSH'
+sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $SERVER << 'ENDSSH'
 set -e
 
 # Stop existing services if any
@@ -68,7 +69,7 @@ ENDSSH
 
 echo ""
 echo "⚙️  Step 4: Configuring environment..."
-ssh $SERVER << 'ENDSSH'
+sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $SERVER << 'ENDSSH'
 cd /opt/cognitude
 
 # Create .env file if it doesn't exist
@@ -162,7 +163,7 @@ ENDSSH
 
 echo ""
 echo "🐳 Step 5: Starting services..."
-ssh $SERVER << 'ENDSSH'
+sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $SERVER << 'ENDSSH'
 cd /opt/cognitude
 
 # Build and start services
