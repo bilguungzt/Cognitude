@@ -62,11 +62,11 @@ def clear_cache(
     This will delete all cached LLM responses from both Redis and PostgreSQL.
     Use with caution.
     """
-    # Clear Redis cache
+    # Clear Redis cache for this organization only
     redis_cleared = redis_cache.clear(organization.id)
     
-    # Clear PostgreSQL cache (for all organizations, as the function is not org-specific)
-    pg_cleared = crud.clear_cache(db)
+    # Clear PostgreSQL cache for this organization only
+    pg_cleared = crud.clear_cache_for_org(db, organization.id)
     
     return {
         "message": "Cache cleared successfully",
@@ -87,8 +87,11 @@ def delete_cache_entry(
     Args:
     - cache_key: The MD5 hash of the cached request
     """
-    # Get cache entry
-    cache_entry = crud.get_from_cache(db, cache_key)
+    # Create organization-scoped cache key to prevent collisions
+    org_scoped_cache_key = f"{organization.id}:{cache_key}"
+    
+    # Get cache entry using the scoped key
+    cache_entry = crud.get_from_cache(db, org_scoped_cache_key)
     
     # Verify ownership and existence
     if not cache_entry or cache_entry.organization_id != organization.id:

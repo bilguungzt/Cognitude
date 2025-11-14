@@ -4,11 +4,15 @@ from app import models, schemas
 from app.database import get_db
 from sqlalchemy import func, case
 from datetime import datetime, timedelta
+from app.security import get_organization_from_api_key
 
 router = APIRouter()
 
 @router.get("/summary", response_model=schemas.DashboardSummaryStats)
-def get_dashboard_summary_statistics(db: Session = Depends(get_db)):
+def get_dashboard_summary_statistics(
+    db: Session = Depends(get_db),
+    organization: schemas.Organization = Depends(get_organization_from_api_key)
+):
     """
     Get summary statistics for the dashboard.
     """
@@ -50,7 +54,10 @@ def get_dashboard_summary_statistics(db: Session = Depends(get_db)):
         }
 
 @router.get("/schema-stats", response_model=schemas.TopSchemaStatsResponse)
-def get_schema_stats(db: Session = Depends(get_db)):
+def get_schema_stats(
+    db: Session = Depends(get_db),
+    organization: schemas.Organization = Depends(get_organization_from_api_key)
+):
     """
     Get statistics for the top 5 most used schemas based on attempt count.
     """

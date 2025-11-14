@@ -145,10 +145,28 @@ class AnalyticsResponse(BaseModel):
 
 class ProviderConfigCreate(BaseModel):
     """Schema for adding a provider configuration."""
-    provider: str
-    api_key: str
+    provider: str = Field(..., min_length=2, max_length=50, description="Provider name")
+    api_key: str = Field(..., min_length=10, max_length=500, description="API key for the provider")
     enabled: bool = True
-    priority: int = 0
+    priority: int = Field(0, ge=0, le=100, description="Routing priority (0-100)")
+    
+    @validator('provider')
+    def validate_provider_name(cls, v):
+        """Validate provider name against allowed providers."""
+        allowed_providers = ['openai', 'anthropic', 'cohere', 'google', 'azure', 'huggingface']
+        if v.lower() not in allowed_providers:
+            raise ValueError(f'Provider must be one of: {", ".join(allowed_providers)}')
+        return v.lower()
+    
+    @validator('api_key')
+    def validate_api_key(cls, v):
+        """Validate API key format."""
+        if not v.strip():
+            raise ValueError('API key cannot be empty')
+        # Check for common API key patterns (basic validation)
+        if len(v) < 10:
+            raise ValueError('API key must be at least 10 characters')
+        return v.strip()
 
 
 class ProviderConfig(BaseModel):

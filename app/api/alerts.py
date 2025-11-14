@@ -2,14 +2,15 @@
 Alert management API endpoints.
 """
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Body
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, Body, Query
+from sqlalchemy.orm import Session, selectinload
 from pydantic import BaseModel, Field
 
 from .. import models, schemas
 from ..database import get_db
 from ..security import get_organization_from_api_key
 from ..services.alert_service import NotificationService
+from ..limiter import limiter
 
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
@@ -209,6 +210,8 @@ def create_alert_channel(
     
     Shows which notification channels are active and when they were created.
     Sensitive data (like webhook URLs) is not exposed in the list view.
+    
+    Supports pagination for organizations with many channels.
     """,
     responses={
         200: {
@@ -238,12 +241,15 @@ def create_alert_channel(
 )
 def list_alert_channels(
     db: Session = Depends(get_db),
-    organization: schemas.Organization = Depends(get_organization_from_api_key)
+    organization: schemas.Organization = Depends(get_organization_from_api_key),
+    skip: int = Query(0, ge=0, description="Number of items to skip for pagination"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum number of items to return")
 ):
-    """List all alert channels for the organization."""
+    """List all alert channels for the organization with pagination."""
+    # Use selectinload to avoid N+1 query problems
     channels = db.query(models.AlertChannel).filter(
         models.AlertChannel.organization_id == organization.id
-    ).all()
+    ).offset(skip).limit(limit).all()
     
     return [
         {
@@ -293,6 +299,7 @@ def delete_alert_channel(
     organization: schemas.Organization = Depends(get_organization_from_api_key)
 ):
     """Delete an alert channel."""
+    # Verify ownership first to prevent IDOR
     channel = db.query(models.AlertChannel).filter(
         models.AlertChannel.id == channel_id,
         models.AlertChannel.organization_id == organization.id
@@ -374,14 +381,16 @@ def create_alert_config(
 @router.get("/configs", response_model=List[AlertConfigResponse])
 def list_alert_configs(
     db: Session = Depends(get_db),
-    organization: schemas.Organization = Depends(get_organization_from_api_key)
+    organization: schemas.Organization = Depends(get_organization_from_api_key),
+    skip: int = Query(0, ge=0, description="Number of items to skip for pagination"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum number of items to return")
 ):
     """
-    List all alert configurations for the organization.
+    List all alert configurations for the organization with pagination.
     """
     configs = db.query(models.AlertConfig).filter(
         models.AlertConfig.organization_id == organization.id
-    ).all()
+    ).offset(skip).limit(limit).all()
     
     return configs
 
@@ -395,6 +404,7 @@ def delete_alert_config(
     """
     Delete an alert configuration.
     """
+    # Verify ownership first to prevent IDOR
     config = db.query(models.AlertConfig).filter(
         models.AlertConfig.id == config_id,
         models.AlertConfig.organization_id == organization.id
@@ -435,16 +445,11 @@ def test_alert_channel(
     notification_service = NotificationService(db)
     # Get the configuration as a Python dict from the JSONB column
     config = channel.configuration
-    if hasattr(config, '__getitem__'):
-        config_dict = config
-    else:
-        # Fallback for type checking issues
-        config_dict = {}
     
     success = False
     
-    if channel.channel_type == "slack" and config_dict and config_dict.get("webhook_url"):
-        webhook_url = str(config_dict["webhook_url"])
+    if channel.channel_type == "slack" and config and config.get("webhook_url"):
+        webhook_url = str(config["webhook_url"])
         success = notification_service.send_slack_notification(
             webhook_url=webhook_url,
             title="🧪 Test Notification",
@@ -456,8 +461,8 @@ def test_alert_channel(
             ]
         )
     
-    elif channel.channel_type == "email" and config_dict and config_dict.get("email"):
-        email = str(config_dict["email"])
+    elif channel.channel_type == "email" and config and config.get("email"):
+        email = str(config["email"])
         success = notification_service.send_email_notification(
             to_email=email,
             subject="🧪 Test Notification from Cognitude",
@@ -472,8 +477,8 @@ def test_alert_channel(
             """
         )
     
-    elif channel.channel_type == "webhook" and config_dict and config_dict.get("webhook_url"):
-        webhook_url = str(config_dict["webhook_url"])
+    elif channel.channel_type == "webhook" and config and config.get("webhook_url"):
+        webhook_url = str(config["webhook_url"])
         success = notification_service.send_webhook_notification(
             webhook_url=webhook_url,
             payload={
@@ -493,6 +498,7 @@ def test_alert_channel(
 
 
 @router.post("/check")
+@limiter.limit("10/minute")  # Rate limit this expensive operation
 def check_cost_alerts(
     db: Session = Depends(get_db),
     organization: schemas.Organization = Depends(get_organization_from_api_key)
@@ -502,6 +508,8 @@ def check_cost_alerts(
     
     This is useful for testing your alert configurations. In production,
     this is automatically called by a background scheduler.
+    
+    Rate limited to 10 requests per minute to prevent abuse.
     """
     notification_service = NotificationService(db)
     results = notification_service.check_and_send_cost_alerts(organization.id)

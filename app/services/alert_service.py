@@ -217,8 +217,10 @@ class NotificationService:
         # Send to each channel
         for channel in channels:
             config = channel.configuration
+            if not config or not isinstance(config, dict):
+                continue  # Skip invalid configurations
             
-            if getattr(channel, 'channel_type') == "slack" and isinstance(config, dict) and config.get("webhook_url"):
+            if channel.channel_type == "slack" and config.get("webhook_url"):
                 title = f"🚨 Cost Alert: {period.title()} Threshold Exceeded"
                 message = (
                     f"Your {period} LLM costs have exceeded the configured threshold.\n\n"
@@ -243,7 +245,7 @@ class NotificationService:
                 ):
                     results["slack"] += 1
             
-            elif getattr(channel, 'channel_type') == "email" and isinstance(config, dict) and config.get("email"):
+            elif channel.channel_type == "email" and isinstance(config, dict) and config.get("email"):
                 subject = f"🚨 Cost Alert: {period.title()} Threshold Exceeded"
                 
                 body_html = f"""
@@ -302,7 +304,7 @@ class NotificationService:
                 ):
                     results["email"] += 1
             
-            elif getattr(channel, 'channel_type') == "webhook" and isinstance(config, dict) and config.get("webhook_url"):
+            elif channel.channel_type == "webhook" and isinstance(config, dict) and config.get("webhook_url"):
                 payload = {
                     "event": "cost_threshold_exceeded",
                     "organization_id": organization_id,
@@ -365,8 +367,10 @@ class NotificationService:
         # Send to each channel
         for channel in channels:
             config = channel.configuration
+            if not config or not isinstance(config, dict):
+                continue  # Skip invalid configurations
             
-            if getattr(channel, 'channel_type') == "slack" and isinstance(config, dict) and config.get("webhook_url"):
+            if channel.channel_type == "slack" and config.get("webhook_url"):
                 title = f"📊 Daily Summary: {org_name}"
                 message = (
                     f"Here's your LLM usage summary for {datetime.utcnow().strftime('%B %d, %Y')}:\n\n"
@@ -392,7 +396,7 @@ class NotificationService:
                 ):
                     results["slack"] += 1
             
-            elif getattr(channel, 'channel_type') == "email" and isinstance(config, dict) and config.get("email"):
+            elif channel.channel_type == "email" and config.get("email"):
                 subject = f"📊 Daily Summary: {datetime.utcnow().strftime('%B %d, %Y')}"
                 
                 body_html = f"""
@@ -587,7 +591,7 @@ class NotificationService:
 
         for channel in channels:
             config = channel.configuration
-            if getattr(channel, 'channel_type') == "slack" and isinstance(config, dict) and config.get("webhook_url"):
+            if channel.channel_type == "slack" and isinstance(config, dict) and config.get("webhook_url"):
                 title = "Billing Discrepancy Detected"
                 message = (
                     f"A billing discrepancy was found for the period: {start_date} to {end_date}.\n\n"
@@ -611,7 +615,7 @@ class NotificationService:
                 ):
                     results["slack"] += 1
 
-            elif getattr(channel, 'channel_type') == "email" and isinstance(config, dict) and config.get("email"):
+            elif channel.channel_type == "email" and isinstance(config, dict) and config.get("email"):
                 subject = "Billing Discrepancy Detected"
                 body_html = f"""
                 <html><body>

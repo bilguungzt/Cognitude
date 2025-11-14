@@ -376,6 +376,17 @@ class UsageAnalyzer:
             models.LLMRequest.timestamp >= cutoff_date
         ).first()
         
+        if not total_stats:
+            # No data available
+            return {
+                'period_days': days,
+                'total': {'requests': 0, 'cost_usd': 0.0, 'prompt_tokens': 0, 'completion_tokens': 0, 'avg_latency_ms': 0.0},
+                'cache': {'cached_requests': 0, 'cache_hit_rate': 0.0, 'estimated_savings_usd': 0.0},
+                'by_model': [],
+                'by_provider': [],
+                'daily_breakdown': []
+            }
+        
         # Cache stats
         cache_stats = self.db.query(
             func.count(models.LLMRequest.id).label('cached_requests'),
@@ -385,6 +396,13 @@ class UsageAnalyzer:
             models.LLMRequest.timestamp >= cutoff_date,
             models.LLMRequest.cache_hit == True
         ).first()
+        
+        if not cache_stats:
+            # Create a mock stats object with default values
+            class MockCacheStats:
+                cached_requests = 0
+                cached_cost_saved = 0
+            cache_stats = MockCacheStats()
         
         # By model
         by_model = self.db.query(

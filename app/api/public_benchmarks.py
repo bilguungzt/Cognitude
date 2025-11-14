@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import LLMRequest
 from app.services.redis_cache import redis_cache
+from app.security import get_organization_from_api_key
 
 router = APIRouter()
 
@@ -40,23 +41,21 @@ def generate_benchmarks(db: Session):
     end_time = datetime.utcnow()
     start_time = end_time - timedelta(days=1)
 
-    query = (
-        text(f"""
-            SELECT
-                provider,
-                model,
-                AVG(cost_usd) as avg_cost,
-                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY latency_ms) as p50_latency,
-                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_ms) as p95_latency,
-                CAST(SUM(CASE WHEN status_code = 200 THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*) as success_rate,
-                COUNT(*) as total_requests
-            FROM llm_requests
-            WHERE timestamp BETWEEN '{start_time.isoformat()}' AND '{end_time.isoformat()}'
-            GROUP BY provider, model
-        """)
-    )
+    query = text("""
+        SELECT
+            provider,
+            model,
+            AVG(cost_usd) as avg_cost,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY latency_ms) as p50_latency,
+            PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_ms) as p95_latency,
+            CAST(SUM(CASE WHEN status_code = 200 THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*) as success_rate,
+            COUNT(*) as total_requests
+        FROM llm_requests
+        WHERE timestamp BETWEEN :start_time AND :end_time
+        GROUP BY provider, model
+    """)
     
-    result = db.execute(query)
+    result = db.execute(query, {"start_time": start_time.isoformat(), "end_time": end_time.isoformat()})
     rows = result.fetchall()
 
     provider_benchmarks: Dict[str, ProviderBenchmark] = {}
@@ -89,10 +88,13 @@ def generate_benchmarks(db: Session):
             redis_cache.redis.set("public_benchmarks", response_data.model_dump_json(), ex=900) # 15 minutes expiration
 
 @router.get("/v1/public/benchmarks/realtime", response_model=PublicBenchmarksResponse, status_code=status.HTTP_200_OK, summary="Get Real-time Public LLM Benchmarks")
-def get_public_benchmarks(db: Session = Depends(get_db)):
+def get_public_benchmarks(
+    db: Session = Depends(get_db),
+    organization=Depends(get_organization_from_api_key)
+):
     """
     Retrieves real-time LLM performance benchmarks from the cache.
-    This endpoint is public and does not require authentication.
+    Requires authentication via X-API-Key header.
     """
     cached_benchmarks = None
     if redis_cache.available:
@@ -107,4 +109,16 @@ def get_public_benchmarks(db: Session = Depends(get_db)):
             detail="Benchmark data not available. Please try again in a few minutes."
         )
     
-    return json.loads(cached_benchmarks)
+    if cached_benchmarks is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Benchmark data not available. Please try again in a few minutes."
+        )
+    
+    # Handle both bytes and string responses from Redis
+    if isinstance(cached_benchmarks, bytes):
+        cached_benchmarks_str = cached_benchmarks.decode('utf-8')
+    else:
+        cached_benchmarks_str = str(cached_benchmarks)
+        
+    return json.loads(cached_benchmarks_str)

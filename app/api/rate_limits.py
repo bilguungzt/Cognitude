@@ -184,9 +184,10 @@ def update_rate_limit_config(
     are not reset - they will continue counting against the new limits.
     """
     try:
+        # Use SELECT FOR UPDATE to prevent race conditions
         config = db.query(RateLimitConfig).filter(
             RateLimitConfig.organization_id == organization.id
-        ).first()
+        ).with_for_update().first()
 
         if not config:
             # Create new config

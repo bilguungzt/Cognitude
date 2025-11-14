@@ -216,6 +216,29 @@ def clear_cache(
     return count
 
 
+def clear_cache_for_org(
+    db: Session,
+    organization_id: int,
+    model: Optional[str] = None,
+    older_than_hours: Optional[int] = None
+) -> int:
+    """Clear cache entries for a specific organization based on filters."""
+    query = db.query(models.LLMCache).filter(models.LLMCache.organization_id == organization_id)
+    
+    if model:
+        query = query.filter(models.LLMCache.model == model)
+    
+    if older_than_hours:
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=older_than_hours)
+        query = query.filter(models.LLMCache.created_at < cutoff_time)
+    
+    count = query.count()
+    query.delete(synchronize_session=False)
+    db.commit()
+    
+    return count
+
+
 def get_cache_stats(db: Session) -> Dict[str, Any]:
     """Get cache statistics."""
     total_entries = db.query(func.count(models.LLMCache.cache_key)).scalar() or 0

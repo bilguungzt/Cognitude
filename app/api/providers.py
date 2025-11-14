@@ -27,6 +27,10 @@ def create_provider(
     Requires API key authentication (X-API-Key header).
     """
     try:
+        # Validate provider configuration
+        if not provider.provider or not provider.api_key:
+            raise ValueError("Provider name and API key are required")
+            
         # create_provider_config expects (db, organization_id, provider, api_key_encrypted, enabled?, priority?)
         db_provider = crud.create_provider_config(
             db,
@@ -37,8 +41,12 @@ def create_provider(
             provider.priority,
         )
         return db_provider
-    except Exception as e:
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        # Log the error but don't expose internal details
+        logging.error(f"Error creating provider config: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to create provider configuration")
 
 
 @router.get("/", response_model=List[schemas.ProviderConfig])
@@ -64,7 +72,7 @@ def list_providers(
         # Log full traceback for debugging and return a 500 with the message
         logging.error("Error listing providers: %s", e)
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Server error listing providers: {str(e)}")
+        raise HTTPException(status_code=500, detail="Server error listing providers. Please try again later.")
 
 
 @router.get("/{provider_id}", response_model=schemas.ProviderConfig)
@@ -75,7 +83,7 @@ def get_provider(
 ):
     """Get a specific provider configuration."""
     providers = crud.get_provider_configs(db, organization.id)
-    provider = next((p for p in providers if getattr(p, 'id', None) == provider_id), None)
+    provider = next((p for p in providers if p.id == provider_id), None)
     
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
@@ -83,14 +91,7 @@ def get_provider(
     return provider
 
 
-@router.get("/debug/whoami")
-def debug_whoami(
-    organization: schemas.Organization = Depends(get_organization_from_api_key)
-):
-    """Dev helper: return organization info for API key debugging."""
-    return {"id": organization.id, "name": organization.name}
-
-
+# Debug endpoint removed for security - avoid exposing organization details
 @router.put("/{provider_id}", response_model=schemas.ProviderConfig)
 def update_provider(
     provider_id: int,

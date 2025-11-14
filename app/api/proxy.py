@@ -151,6 +151,19 @@ async def chat_completions(
     """
     start_time = time.time()
     
+    # Add request size limit check (10MB max)
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            content_length_int = int(content_length)
+            if content_length_int > 10 * 1024 * 1024:  # 10MB limit
+                raise HTTPException(
+                    status_code=413,
+                    detail="Request size exceeds maximum allowed limit of 10MB"
+                )
+        except ValueError:
+            # If content-length header is invalid, continue processing
+            pass
     
     # Instantiate Autopilot Engine
     autopilot = AutopilotEngine(db, redis_cache)
@@ -163,13 +176,29 @@ async def chat_completions(
     
     openai_api_key = openai_provider.get_api_key() if openai_provider else None
     if not openai_api_key:
-        raise HTTPException(status_code=400, detail="OpenAI API key not configured.")
+        raise HTTPException(status_code=400, detail="Provider API key not configured. Please configure your provider credentials.")
 
     # Process request through Autopilot
     org_model = db.query(models.Organization).filter(models.Organization.id == organization.id).first()
     if not org_model:
         raise HTTPException(status_code=404, detail="Organization not found.")
     
+    # Validate organization has rate limit configuration
+    rate_limit_config = db.query(models.RateLimitConfig).filter(
+        models.RateLimitConfig.organization_id == organization.id
+    ).first()
+    
+    if not rate_limit_config:
+        # Create default rate limit config if none exists
+        rate_limit_config = models.RateLimitConfig(
+            organization_id=organization.id,
+            requests_per_minute=100,
+            requests_per_hour=3000,
+            requests_per_day=50000
+        )
+        db.add(rate_limit_config)
+        db.commit()
+
     # 1. Schema Enforcement Setup
     schema = None
     if x_cognitude_schema:
