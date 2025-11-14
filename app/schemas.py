@@ -65,9 +65,24 @@ class ChatCompletionRequest(BaseModel):
     @validator("messages")
     def validate_message_size(cls, v):
         """Validate the total size of the message content."""
+        from app.config import get_settings
+        settings = get_settings()
+        
         total_length = sum(len(msg.content) for msg in v)
-        if total_length > 100000:  # 100KB limit
-            raise ValueError("Total message content exceeds the maximum allowed size of 100KB.")
+        max_size = settings.MAX_TOTAL_MESSAGE_SIZE_KB * 1024  # Convert KB to bytes
+        
+        if total_length > max_size:
+            raise ValueError(f"Total message content exceeds the maximum allowed size of {settings.MAX_TOTAL_MESSAGE_SIZE_KB}KB.")
+        return v
+
+    @validator("max_tokens")
+    def validate_max_tokens(cls, v):
+        """Validate max_tokens doesn't exceed configured limit."""
+        from app.config import get_settings
+        settings = get_settings()
+        
+        if v is not None and v > settings.MAX_TOKENS_PER_REQUEST:
+            raise ValueError(f"max_tokens cannot exceed {settings.MAX_TOKENS_PER_REQUEST}")
         return v
 
 

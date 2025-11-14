@@ -6,12 +6,15 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
 
 import time
-from .api import auth, proxy, analytics, providers, cache, smart_routing, alerts, rate_limits, monitoring, dashboard, schemas, public_benchmarks
+from .api import auth, proxy, analytics, providers, cache, smart_routing, alerts, rate_limits, monitoring, dashboard, schemas, public_benchmarks, metrics
 from .api.monitoring import request_count, request_latency
 from .database import Base, engine
 from .services.background_tasks import scheduler
+from .services.tracing import setup_tracing, instrument_app, tracer
 from .limiter import limiter
 from .config import get_settings
 
@@ -59,6 +62,9 @@ async def lifespan(app: FastAPI):
     yield
     scheduler.shutdown()
 
+
+# Initialize tracing
+tracer = setup_tracing(app_name="cognitude-api", environment=settings.ENVIRONMENT or "development")
 
 app = FastAPI(
     title="Cognitude LLM Proxy",
@@ -128,6 +134,9 @@ curl -X POST http://your-server:8000/v1/chat/completions \\
     lifespan=lifespan
 )
 
+# Instrument the app with OpenTelemetry
+instrument_app(app)
+
 app.state.limiter = limiter
 
 @app.exception_handler(RateLimitExceeded)
@@ -149,23 +158,50 @@ async def track_metrics(request: Request, call_next):
     if request.url.path in ["/", "/health"]:
         return await call_next(request)
     
-    start_time = time.time()
-    try:
-        response = await call_next(request)
-        process_time = time.time() - start_time
+    # Start OpenTelemetry span
+    with tracer.start_as_current_span("http_request") as span:
+        # Add request attributes
+        span.set_attribute("http.method", request.method)
+        span.set_attribute("http.url", str(request.url))
+        span.set_attribute("http.target", request.url.path)
+        span.set_attribute("http.host", request.url.hostname or "unknown")
+        span.set_attribute("http.scheme", request.url.scheme)
+        span.set_attribute("http.user_agent", request.headers.get("user-agent", ""))
         
-        endpoint = request.url.path
-        status_code = response.status_code
-        
-        request_count.labels(method=request.method, endpoint=endpoint, status=status_code).inc()
-        request_latency.labels(method=request.method, endpoint=endpoint).observe(process_time)
-        
-        return response
-    except Exception as e:
-        process_time = time.time() - start_time
-        request_count.labels(method=request.method, endpoint=request.url.path, status=500).inc()
-        request_latency.labels(method=request.method, endpoint=request.url.path).observe(process_time)
-        raise
+        start_time = time.time()
+        try:
+            response = await call_next(request)
+            process_time = time.time() - start_time
+            
+            # Add response attributes
+            span.set_attribute("http.status_code", response.status_code)
+            span.set_attribute("http.response_time_ms", process_time * 1000)
+            
+            # Update Prometheus metrics
+            endpoint = request.url.path
+            status_code = response.status_code
+            
+            request_count.labels(method=request.method, endpoint=endpoint, status=status_code).inc()
+            request_latency.labels(method=request.method, endpoint=endpoint).observe(process_time)
+            
+            # Set span status based on response
+            if status_code >= 400:
+                span.set_status(Status(StatusCode.ERROR, f"HTTP {status_code}"))
+            else:
+                span.set_status(Status(StatusCode.OK))
+            
+            return response
+        except Exception as e:
+            process_time = time.time() - start_time
+            
+            # Record exception in span
+            span.record_exception(e)
+            span.set_status(Status(StatusCode.ERROR, str(e)))
+            
+            # Update error metrics
+            request_count.labels(method=request.method, endpoint=request.url.path, status=500).inc()
+            request_latency.labels(method=request.method, endpoint=request.url.path).observe(process_time)
+            raise
 
 # Include routers
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -185,6 +221,7 @@ app.include_router(cache.router)  # Uses /cache prefix from router
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
 app.include_router(schemas.router, prefix="/api/schemas", tags=["schemas"])
 app.include_router(public_benchmarks.router)
+app.include_router(metrics.router, prefix="/metrics", tags=["metrics"])
 
 @app.get("/health")
 def health_check():

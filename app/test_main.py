@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from app.database import Base
 from app.main import app
-from app.security import get_db
+from app.database import get_db
 from app import security
 
 

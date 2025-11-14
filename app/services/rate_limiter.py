@@ -149,31 +149,31 @@ class RateLimiter:
     ) -> Tuple[bool, int, int]:
         """
         Check rate limit for a specific time window.
-        
+
         Args:
             organization_id: Organization ID
             window: Time window (minute/hour/day)
             limit: Request limit for this window
-            
+
         Returns:
             Tuple of (is_allowed, current_count, retry_after_seconds)
         """
         if not self.redis.redis:
-            # Redis unavailable - allow request but log warning
-            logger.warning(f"Redis unavailable for rate limiting org {organization_id}")
-            return True, 0, 0
-        
+            # Redis unavailable - use in-memory fallback
+            logger.warning(f"Redis unavailable for rate limiting org {organization_id}, using in-memory fallback")
+            return self._check_window_in_memory(organization_id, window, limit)
+
         try:
             key = self._get_current_window_key(organization_id, window)
-            
+
             # Atomic increment with pipeline
             pipe = self.redis.redis.pipeline()
             pipe.incr(key)
             pipe.expire(key, self._get_window_expiry(window))
             results = pipe.execute()
-            
+
             current_count = results[0]
-            
+
             # Check if limit exceeded
             if current_count > limit:
                 # Calculate retry_after based on window
@@ -184,16 +184,93 @@ class RateLimiter:
                     next_window = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
                 else:  # day
                     next_window = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-                
+
                 retry_after = int((next_window - now).total_seconds()) + 1
                 return False, current_count, retry_after
-            
+
             return True, current_count, 0
-            
+
         except Exception as e:
             logger.error(f"Rate limit check error for org {organization_id}, window {window}: {e}")
-            # On error, allow request (fail open)
-            return True, 0, 0
+            # On error, fall back to in-memory rate limiting
+            return self._check_window_in_memory(organization_id, window, limit)
+
+    def _check_window_in_memory(
+        self,
+        organization_id: int,
+        window: str,
+        limit: int
+    ) -> Tuple[bool, int, int]:
+        """
+        In-memory fallback for rate limiting when Redis is unavailable.
+
+        Args:
+            organization_id: Organization ID
+            window: Time window (minute/hour/day)
+            limit: Request limit for this window
+
+        Returns:
+            Tuple of (is_allowed, current_count, retry_after_seconds)
+        """
+        # Simple in-memory storage using class-level dictionary
+        if not hasattr(self, '_in_memory_storage'):
+            self._in_memory_storage = {}
+
+        now = datetime.utcnow()
+        key = f"{organization_id}:{window}:{self._get_window_key(now, window)}"
+
+        # Initialize storage for this window if needed
+        if key not in self._in_memory_storage:
+            self._in_memory_storage[key] = {
+                'count': 0,
+                'expires_at': self._get_window_expiry_time(now, window)
+            }
+
+        # Clean up expired entries periodically
+        self._cleanup_in_memory_storage()
+
+        # Increment counter
+        self._in_memory_storage[key]['count'] += 1
+        current_count = self._in_memory_storage[key]['count']
+
+        # Check if limit exceeded
+        if current_count > limit:
+            retry_after = int((self._in_memory_storage[key]['expires_at'] - now).total_seconds()) + 1
+            return False, current_count, retry_after
+
+        return True, current_count, 0
+
+    def _get_window_key(self, dt: datetime, window: str) -> str:
+        """Get the key for a given datetime and window."""
+        if window == "minute":
+            return dt.strftime("%Y-%m-%d:%H:%M")
+        elif window == "hour":
+            return dt.strftime("%Y-%m-%d:%H")
+        else:  # day
+            return dt.strftime("%Y-%m-%d")
+
+    def _get_window_expiry_time(self, dt: datetime, window: str) -> datetime:
+        """Get the expiry time for a given window."""
+        if window == "minute":
+            return (dt + timedelta(minutes=1)).replace(second=0, microsecond=0)
+        elif window == "hour":
+            return (dt + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+        else:  # day
+            return (dt + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    def _cleanup_in_memory_storage(self):
+        """Clean up expired entries from in-memory storage."""
+        if not hasattr(self, '_in_memory_storage'):
+            return
+
+        now = datetime.utcnow()
+        expired_keys = [
+            key for key, data in self._in_memory_storage.items()
+            if data['expires_at'] < now
+        ]
+
+        for key in expired_keys:
+            del self._in_memory_storage[key]
     
     def check_rate_limit(
         self,
@@ -201,37 +278,38 @@ class RateLimiter:
     ) -> Tuple[bool, Optional[int], Dict[str, int]]:
         """
         Check rate limits across all time windows.
-        
+
         Checks minute, hour, and day limits. If any window is exceeded,
         returns False with retry_after for the most restrictive window.
-        
+        Falls back to in-memory rate limiting if Redis is unavailable.
+
         Args:
             organization_id: Organization ID to check
-            
+
         Returns:
             Tuple of (is_allowed, retry_after_seconds, usage_dict)
             where usage_dict contains current counts for each window
         """
         # Get limits for this organization
         limits = self._get_rate_limit_config(organization_id)
-        
+
         # Check all windows
         usage = {}
         retry_after = None
         is_allowed = True
-        
+
         for window in ["minute", "hour", "day"]:
             limit = limits[window]
             allowed, count, retry = self._check_window(organization_id, window, limit)
-            
+
             usage[window] = count
-            
+
             if not allowed:
                 is_allowed = False
                 # Use shortest retry_after (most restrictive)
                 if retry_after is None or retry < retry_after:
                     retry_after = retry
-        
+
         return is_allowed, retry_after, usage
     
     def get_rate_limit_headers(

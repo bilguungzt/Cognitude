@@ -2,7 +2,7 @@
 Alert management API endpoints.
 """
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Body, Query
+from fastapi import APIRouter, Depends, HTTPException, Body, Query, Request
 from sqlalchemy.orm import Session, selectinload
 from pydantic import BaseModel, Field
 
@@ -500,6 +500,7 @@ def test_alert_channel(
 @router.post("/check")
 @limiter.limit("10/minute")  # Rate limit this expensive operation
 def check_cost_alerts(
+    request: Request,
     db: Session = Depends(get_db),
     organization: schemas.Organization = Depends(get_organization_from_api_key)
 ):

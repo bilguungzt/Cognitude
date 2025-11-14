@@ -1,14 +1,17 @@
 from typing import cast
 from datetime import datetime
+import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .. import crud, schemas, security
 from ..security import get_db
+from ..core.validation import validate_organization_name, ValidationError
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post(
@@ -61,24 +64,51 @@ router = APIRouter()
     }
 )
 def register_organization(
-    organization: schemas.OrganizationCreate, db: Session = Depends(get_db)
+    organization: schemas.OrganizationCreate,
+    request: Request,
+    db: Session = Depends(get_db)
 ):
-    api_key = security.create_api_key()
-    hashed_api_key = security.get_password_hash(api_key)
     try:
+        # Validate and sanitize organization name
+        sanitized_name = validate_organization_name(organization.name)
+        
+        # Create API key
+        api_key = security.create_api_key()
+        hashed_api_key = security.get_password_hash(api_key)
+        
+        # Create organization with sanitized name
         db_organization = crud.create_organization(
-            db=db, organization=organization, api_key_hash=hashed_api_key
+            db=db,
+            organization=schemas.OrganizationCreate(name=sanitized_name),
+            api_key_hash=hashed_api_key
         )
-    except IntegrityError as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=409,
-            detail="Organization name already exists.",
-        ) from exc
-    else:
+        
+        logger.info(f"Organization created successfully: {sanitized_name}")
+        
         return schemas.OrganizationWithAPIKey(
             id=cast(int, db_organization.id),
             name=cast(str, db_organization.name),
             api_key=api_key,
             created_at=cast(datetime, db_organization.created_at),
+        )
+        
+    except ValidationError as e:
+        logger.warning(f"Validation error during organization registration: {e.detail}")
+        raise HTTPException(
+            status_code=400,
+            detail=e.detail
+        )
+    except IntegrityError as exc:
+        db.rollback()
+        logger.warning(f"Organization name already exists: {organization.name}")
+        raise HTTPException(
+            status_code=409,
+            detail="Organization name already exists.",
+        ) from exc
+    except Exception as e:
+        logger.error(f"Unexpected error during organization registration: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while creating the organization. Please try again."
         )

@@ -49,18 +49,13 @@ class Organization(Base):
     def verify_api_key(self, api_key: str) -> bool:
         """Verifies a plain-text API key against the stored hash.
 
-        For local/dev convenience the database may contain plaintext API keys
-        (not hashed). Detect common bcrypt hash prefixes and use bcrypt
-        verification in that case; otherwise fall back to direct equality.
+        Uses bcrypt verification for all API keys. All API keys must be properly
+        hashed when stored in the database.
         """
         try:
             stored = getattr(self, 'api_key_hash', '') or ''
-            # bcrypt hashes start with $2b$ or $2a$ etc. Use that to choose
-            # verification strategy.
-            if isinstance(stored, str) and stored.startswith("$2"):
-                return pwd_context.verify(api_key, stored)
-            # Fallback for dev: stored API key may be plaintext
-            return api_key == stored
+            # All API keys should be bcrypt hashed. Verify using bcrypt.
+            return pwd_context.verify(api_key, stored)
         except Exception:
             # On any unexpected error, be conservative and return False
             return False
@@ -153,8 +148,14 @@ class ProviderConfig(Base):
         return f"<ProviderConfig(id={self.id}, provider='{self.provider}', enabled={self.enabled})>"
 
     def get_api_key(self) -> str:
-        # TODO: Decrypt in production
-        return str(self.api_key_encrypted)
+        """Decrypt and return the API key."""
+        from app.services.encryption import encryption_service
+        try:
+            return encryption_service.decrypt(str(self.api_key_encrypted))
+        except Exception as e:
+            # Fallback for development: if decryption fails, assume plaintext
+            # This should be removed in production
+            return str(self.api_key_encrypted)
 
 
 # ============================================================================

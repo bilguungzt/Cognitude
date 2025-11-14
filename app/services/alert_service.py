@@ -3,6 +3,7 @@ Notification service for sending alerts via Slack, email, and webhooks.
 """
 import requests
 import smtplib
+import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Dict, Any, Optional, List
@@ -15,6 +16,7 @@ from .. import models
 from ..config import get_settings
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 class NotificationService:
@@ -79,7 +81,7 @@ class NotificationService:
             return response.status_code == 200
             
         except Exception as e:
-            print(f"Slack notification error: {e}")
+            logger.error(f"Slack notification error: {e}", exc_info=True)
             return False
     
     def send_email_notification(
@@ -117,7 +119,7 @@ class NotificationService:
                 from_email = settings.FROM_EMAIL
             
             if not from_email or not smtp_config.get("username") or not smtp_config.get("password"):
-                print("SMTP credentials not configured")
+                logger.warning("SMTP credentials not configured")
                 return False
             
             # Create message
@@ -139,7 +141,7 @@ class NotificationService:
             return True
             
         except Exception as e:
-            print(f"Email notification error: {e}")
+            logger.error(f"Email notification error: {e}", exc_info=True)
             return False
     
     def send_webhook_notification(
@@ -167,7 +169,7 @@ class NotificationService:
             return response.status_code in [200, 201, 202, 204]
             
         except Exception as e:
-            print(f"Webhook notification error: {e}")
+            logger.error(f"Webhook notification error: {e}", exc_info=True)
             return False
     
     def notify_cost_threshold(

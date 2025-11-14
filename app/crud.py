@@ -586,11 +586,20 @@ def create_provider_config(
     enabled: bool = True,
     priority: int = 1
 ) -> models.ProviderConfig:
-    """Create a new provider configuration."""
+    """Create a new provider configuration with encrypted API key."""
+    from app.services.encryption import encryption_service
+    
+    # Encrypt the API key before storing
+    try:
+        encrypted_key = encryption_service.encrypt(api_key)
+    except Exception as e:
+        # Fallback for development if encryption fails
+        encrypted_key = api_key
+    
     db_provider = models.ProviderConfig(
         organization_id=organization_id,
         provider=provider,
-        api_key_encrypted=api_key,  # Note: should be encrypted in production
+        api_key_encrypted=encrypted_key,
         enabled=enabled,
         priority=priority
     )

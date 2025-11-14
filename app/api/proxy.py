@@ -4,6 +4,7 @@ Core LLM proxy endpoint with caching and multi-provider routing.
 import time
 from typing import Optional
 import json
+import logging
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Response, Header, Request
 from sqlalchemy.orm import Session
@@ -17,7 +18,10 @@ from ..services.pricing import calculate_cost
 from ..services.redis_cache import redis_cache
 from ..core.autopilot import AutopilotEngine
 from ..core.schema_enforcer import SchemaEnforcer, validate_user_schema
+from ..core.validation import validate_model_name, ValidationError
 from ..limiter import limiter
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(tags=["proxy"])
@@ -151,19 +155,31 @@ async def chat_completions(
     """
     start_time = time.time()
     
-    # Add request size limit check (10MB max)
-    content_length = request.headers.get("content-length")
-    if content_length:
-        try:
-            content_length_int = int(content_length)
-            if content_length_int > 10 * 1024 * 1024:  # 10MB limit
-                raise HTTPException(
-                    status_code=413,
-                    detail="Request size exceeds maximum allowed limit of 10MB"
-                )
-        except ValueError:
-            # If content-length header is invalid, continue processing
-            pass
+    try:
+        # Validate request size
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                content_length_int = int(content_length)
+                if content_length_int > 10 * 1024 * 1024:  # 10MB limit
+                    raise HTTPException(
+                        status_code=413,
+                        detail="Request size exceeds maximum allowed limit of 10MB"
+                    )
+            except ValueError:
+                # If content-length header is invalid, continue processing
+                pass
+        
+        # Validate model name
+        validated_model = validate_model_name(request_body.model)
+        request_body.model = validated_model
+        
+    except ValidationError as e:
+        logger.warning(f"Validation error in chat completions: {e.detail}")
+        raise HTTPException(status_code=400, detail=e.detail)
+    except Exception as e:
+        logger.error(f"Unexpected validation error: {e}")
+        raise HTTPException(status_code=400, detail="Invalid request data")
     
     # Instantiate Autopilot Engine
     autopilot = AutopilotEngine(db, redis_cache)
