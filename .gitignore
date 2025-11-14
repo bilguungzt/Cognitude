@@ -49,6 +49,9 @@ postgres-certs/
 # Docker
 .docker/
 
+# Frontend
+frontend/
+
 # MacOS
 .DS_Store
 

@@ -274,3 +274,40 @@ class DashboardSummaryStats(BaseModel):
     autopilot_decisions_today: int
     validation_failures_last_24h: int
     active_schemas: int
+
+
+# ============================================================================
+# Model & Feature Schemas
+# ============================================================================
+
+class ModelFeatureBase(BaseModel):
+    feature_name: str
+    feature_type: str  # 'numeric' or 'categorical'
+    order: int
+
+class ModelFeatureCreate(ModelFeatureBase):
+    pass
+
+class ModelFeature(ModelFeatureBase):
+    id: int
+    model_id: int
+
+    class Config:
+        from_attributes = True
+
+
+class ModelBase(BaseModel):
+    name: str
+    version: str
+    description: Optional[str] = None
+
+class ModelCreate(ModelBase):
+    features: List[ModelFeatureCreate]
+
+class Model(ModelBase):
+    id: int
+    organization_id: int
+    features: List[ModelFeature] = []
+
+    class Config:
+        from_attributes = True

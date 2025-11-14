@@ -175,13 +175,14 @@ def test_list_configs():
         print(response.text)
         return False
 
-def test_send_test_notification(channel_id):
-    """Test sending a test notification"""
-    print_section(f"Test 6: Send Test Notification (Channel {channel_id})")
-    
+def test_send_test_notification():
+    """Test sending a test notification to a specific channel"""
+    channel_id = test_create_slack_channel()
     if not channel_id:
-        print("⏭️  Skipping - no channel ID provided")
-        return False
+        print("⚠️  Skipping test: No channel ID provided.")
+        return
+
+    print_section(f"Test 6: Send Test Notification to Channel {channel_id}")
     
     response = requests.post(
         f"{BASE_URL}/alerts/test/{channel_id}",
@@ -189,8 +190,8 @@ def test_send_test_notification(channel_id):
     )
     
     if response.status_code == 200:
-        print("✅ Success! Test notification sent")
-        print("\n💡 Check your Slack/email to verify delivery")
+        print("✅ Success! Test notification sent.")
+        print(f"   Response: {response.json().get('message')}")
         return True
     else:
         print(f"❌ Failed: {response.status_code}")
@@ -198,8 +199,8 @@ def test_send_test_notification(channel_id):
         return False
 
 def test_check_alerts():
-    """Test manually checking cost alerts"""
-    print_section("Test 7: Manual Alert Check")
+    """Manually trigger an alert check"""
+    print_section("Test 7: Manually Trigger Alert Check")
     
     response = requests.post(
         f"{BASE_URL}/alerts/check",
@@ -208,19 +209,10 @@ def test_check_alerts():
     
     if response.status_code == 200:
         data = response.json()
-        print("✅ Success! Alert check complete:")
-        print(f"\n  Alerts Checked: {data['alerts_checked']}")
-        print(f"  Alerts Triggered: {data['alerts_triggered']}")
-        print(f"  Notifications Sent:")
-        print(f"    - Slack: {data['notifications_sent']['slack']}")
-        print(f"    - Email: {data['notifications_sent']['email']}")
-        print(f"    - Webhook: {data['notifications_sent']['webhook']}")
-        
-        if data['alerts_triggered'] > 0:
-            print("\n  🚨 Cost threshold exceeded! Check your notifications.")
-        else:
-            print("\n  ✅ All costs within thresholds.")
-        
+        print("✅ Success! Alert check triggered.")
+        print(f"   Message: {data.get('message')}")
+        print(f"   Alerts Checked: {data.get('alerts_checked')}")
+        print(f"   Alerts Triggered: {data.get('alerts_triggered')}")
         return True
     else:
         print(f"❌ Failed: {response.status_code}")
@@ -228,33 +220,24 @@ def test_check_alerts():
         return False
 
 def test_alert_types():
-    """Test creating different alert types"""
-    print_section("Test 8: Create Multiple Alert Types")
+    """Test retrieving available alert types"""
+    print_section("Test 8: Get Available Alert Types")
     
-    alert_types = [
-        {"alert_type": "weekly_cost", "threshold_usd": 250.00},
-        {"alert_type": "monthly_cost", "threshold_usd": 1000.00}
-    ]
+    response = requests.get(
+        f"{BASE_URL}/alerts/types",
+        headers={"X-API-Key": API_KEY}
+    )
     
-    created = []
-    for config in alert_types:
-        response = requests.post(
-            f"{BASE_URL}/alerts/configs",
-            headers={
-                "X-API-Key": API_KEY,
-                "Content-Type": "application/json"
-            },
-            json=config
-        )
-        
-        if response.status_code == 200:
-            data = response.json()
-            created.append(data)
-            print(f"✅ Created {data['alert_type']}: ${data['threshold_usd']:.2f}")
-        else:
-            print(f"❌ Failed to create {config['alert_type']}: {response.status_code}")
-    
-    return len(created) > 0
+    if response.status_code == 200:
+        types = response.json()
+        print("✅ Success! Available alert types:")
+        for alert_type in types:
+            print(f"  - {alert_type}")
+        return True
+    else:
+        print(f"❌ Failed: {response.status_code}")
+        print(response.text)
+        return False
 
 def main():
     """Run all tests"""
@@ -301,7 +284,7 @@ def main():
     # Send test notification (if channel created)
     test_channel = slack_channel_id or email_channel_id
     if test_channel:
-        results.append(("Send Test Notification", test_send_test_notification(test_channel)))
+        results.append(("Send Test Notification", test_send_test_notification()))
     
     # Check alerts
     results.append(("Check Alerts", test_check_alerts()))
