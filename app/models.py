@@ -262,7 +262,7 @@ class AutopilotLog(Base):
     original_model = Column(String(100), nullable=False, index=True)
     selected_model = Column(String(100), nullable=False, index=True)
     task_type = Column(String(50), nullable=True, index=True)
-    routing_reason = Column(String(255), nullable=False)
+    routing_reason = Column(Text, nullable=False)
     
     # Cost and performance metrics
     cost_usd = Column(Numeric(precision=10, scale=6), nullable=False)

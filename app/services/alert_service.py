@@ -496,7 +496,7 @@ class NotificationService:
             ).filter(
                 models.LLMRequest.organization_id == organization_id,
                 models.LLMRequest.timestamp >= start_date,
-                models.LLMRequest.cached == False  # Only count non-cached costs
+                models.LLMRequest.cache_hit == False  # Only count non-cached costs
             ).scalar() or Decimal("0.0")
             
             # Check if threshold exceeded

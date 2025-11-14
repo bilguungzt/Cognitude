@@ -38,6 +38,7 @@ services:
       - db
       - redis
     environment:
+      - PYTHONPATH=/code
       - DATABASE_URL=postgresql+psycopg2://myuser:mypassword@db/mydatabase
       - REDIS_URL=redis://redis:6379/0
 

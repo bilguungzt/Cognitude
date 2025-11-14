@@ -1,8 +1,16 @@
 """Alembic environment configuration for Cognitude LLM monitoring platform."""
+import os
+import sys
+sys.path.append(os.getcwd())
+
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from alembic import context
+
+import sys
+from os.path import abspath, dirname
+sys.path.insert(0, dirname(dirname(abspath(__file__))))
 
 # Import your models for autogenerate support
 from app.database import Base

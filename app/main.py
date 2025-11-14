@@ -8,7 +8,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 import time
-from .api import auth, proxy, analytics, providers, cache, smart_routing, alerts, rate_limits, monitoring, dashboard, schemas, alert_channels, public_benchmarks
+from .api import auth, proxy, analytics, providers, cache, smart_routing, alerts, rate_limits, monitoring, dashboard, schemas, public_benchmarks
 from .api.monitoring import request_count, request_latency
 from .database import Base, engine
 from .services.background_tasks import scheduler
@@ -30,7 +30,31 @@ if settings.SENTRY_DSN:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Auto-run migrations on startup
-    Base.metadata.create_all(bind=engine)
+    import subprocess
+    import sys
+    
+    try:
+        # Run Alembic migrations
+        print("Running database migrations...")
+        result = subprocess.run(
+            [sys.executable, "-m", "alembic", "upgrade", "head"],
+            capture_output=True,
+            text=True,
+            cwd="/Users/billy/Documents/Projects/cognitude_mvp"
+        )
+        
+        if result.returncode == 0:
+            print("✅ Database migrations completed successfully")
+            print(result.stdout)
+        else:
+            print("❌ Database migrations failed:")
+            print(result.stderr)
+            # Don't raise exception - allow app to start even if migrations fail
+            # This is important for development and first-time setup
+    except Exception as e:
+        print(f"❌ Error running migrations: {e}")
+        print("Continuing with application startup...")
+    
     scheduler.start()
     yield
     scheduler.shutdown()
@@ -154,13 +178,12 @@ app.include_router(monitoring.router, tags=["monitoring"])
 app.include_router(analytics.router, tags=["analytics"])
 
 # Configuration
-app.include_router(rate_limits.router, tags=["config"])
-app.include_router(alerts.router, tags=["config"])
+app.include_router(rate_limits.router, tags=["rate-limits"])
+app.include_router(alerts.router, tags=["alerts"])
 app.include_router(smart_routing.router)  # Smart routing endpoints
 app.include_router(cache.router)  # Uses /cache prefix from router
 app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
 app.include_router(schemas.router, prefix="/api/schemas", tags=["schemas"])
-app.include_router(alert_channels.router)
 app.include_router(public_benchmarks.router)
 
 @app.get("/health")

@@ -58,75 +58,134 @@ class AlertConfigResponse(BaseModel):
 # Alert Channel Endpoints
 # ============================================================================
 
-@router.post("/channels", response_model=AlertChannelResponse)
+@router.post(
+    "/channels",
+    response_model=AlertChannelResponse,
+    summary="Create an alert channel",
+    description="""
+    Configure email, Slack, or webhook notifications for alerts.
+    
+    When alerts are triggered, Cognitude will automatically send notifications
+    through all active channels configured for your organization.
+    
+    **Email Example:**
+    ```bash
+    curl -X POST https://api.cognitude.io/alerts/channels/ \\
+      -H "X-API-Key: your-api-key" \\
+      -H "Content-Type: application/json" \\
+      -d '{
+        "channel_type": "email",
+        "configuration": {"email": "alerts@company.com"}
+      }'
+    ```
+    
+    **Slack Example:**
+    ```bash
+    curl -X POST https://api.cognitude.io/alerts/channels/ \\
+      -H "X-API-Key: your-api-key" \\
+      -H "Content-Type: application/json" \\
+      -d '{
+        "channel_type": "slack",
+        "configuration": {
+          "webhook_url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+        }
+      }'
+    ```
+    
+    **Webhook Example:**
+    ```bash
+    curl -X POST https://api.cognitude.io/alerts/channels/ \\
+      -H "X-API-Key: your-api-key" \\
+      -H "Content-Type: application/json" \\
+      -d '{
+        "channel_type": "webhook",
+        "configuration": {
+          "webhook_url": "https://your-server.com/webhook"
+        }
+      }'
+    ```
+    
+    **How to get a Slack webhook:**
+    1. Go to https://api.slack.com/apps
+    2. Create a new app or select existing
+    3. Enable "Incoming Webhooks"
+    4. Add webhook to your workspace
+    5. Copy the webhook URL
+    """,
+    responses={
+        200: {
+            "description": "Alert channel created successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": 1,
+                        "channel_type": "email",
+                        "is_active": True,
+                        "created_at": "2025-11-06T10:30:00Z"
+                    }
+                }
+            }
+        },
+        400: {
+            "description": "Invalid request",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "invalid_type": {
+                            "summary": "Invalid channel type",
+                            "value": {"detail": "channel_type must be 'email', 'slack', or 'webhook'"}
+                        },
+                        "missing_config": {
+                            "summary": "Missing configuration",
+                            "value": {"detail": "configuration must contain required fields for the channel type"}
+                        }
+                    }
+                }
+            }
+        }
+    }
+)
 def create_alert_channel(
     channel: AlertChannelCreate,
     db: Session = Depends(get_db),
     organization: schemas.Organization = Depends(get_organization_from_api_key)
 ):
     """
-    Create a new alert channel for notifications.
+    Create a new alert channel for the organization.
     
-    **Supported Channels**:
-    
-    1. **Slack** (channel_type: "slack")
-       ```json
-       {
-         "channel_type": "slack",
-         "configuration": {
-           "webhook_url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
-         }
-       }
-       ```
-       Get webhook URL from: Slack Settings → Incoming Webhooks
-    
-    2. **Email** (channel_type: "email")
-       ```json
-       {
-         "channel_type": "email",
-         "configuration": {
-           "email": "alerts@your-company.com"
-         }
-       }
-       ```
-       Requires SMTP configuration in environment variables
-    
-    3. **Webhook** (channel_type: "webhook")
-       ```json
-       {
-         "channel_type": "webhook",
-         "configuration": {
-           "webhook_url": "https://your-server.com/webhook"
-         }
-       }
-       ```
-       Will receive JSON POST requests with alert data
+    Examples:
+    - Email: {"channel_type": "email", "configuration": {"email": "alerts@company.com"}}
+    - Slack: {"channel_type": "slack", "configuration": {"webhook_url": "https://hooks.slack.com/..."}}
+    - Webhook: {"channel_type": "webhook", "configuration": {"webhook_url": "https://your-server.com/webhook"}}
     """
     # Validate channel type
-    if channel.channel_type not in ["slack", "email", "webhook"]:
+    if channel.channel_type not in ["email", "slack", "webhook"]:
         raise HTTPException(
             status_code=400,
-            detail="Invalid channel_type. Must be 'slack', 'email', or 'webhook'"
+            detail="channel_type must be 'email', 'slack', or 'webhook'"
         )
     
-    # Validate configuration
-    if channel.channel_type == "slack" and "webhook_url" not in channel.configuration:
-        raise HTTPException(
-            status_code=400,
-            detail="Slack channel requires 'webhook_url' in configuration"
-        )
-    if channel.channel_type == "email" and "email" not in channel.configuration:
-        raise HTTPException(
-            status_code=400,
-            detail="Email channel requires 'email' in configuration"
-        )
-    if channel.channel_type == "webhook" and "webhook_url" not in channel.configuration:
-        raise HTTPException(
-            status_code=400,
-            detail="Webhook channel requires 'webhook_url' in configuration"
-        )
+    # Validate configuration based on channel type
+    if channel.channel_type == "email":
+        if "email" not in channel.configuration:
+            raise HTTPException(
+                status_code=400,
+                detail="configuration must contain 'email' field for email channels"
+            )
+    elif channel.channel_type == "slack":
+        if "webhook_url" not in channel.configuration:
+            raise HTTPException(
+                status_code=400,
+                detail="configuration must contain 'webhook_url' field for Slack channels"
+            )
+    elif channel.channel_type == "webhook":
+        if "webhook_url" not in channel.configuration:
+            raise HTTPException(
+                status_code=400,
+                detail="configuration must contain 'webhook_url' field for webhook channels"
+            )
     
-    # Create channel
+    # Create the alert channel
     db_channel = models.AlertChannel(
         organization_id=organization.id,
         channel_type=channel.channel_type,
@@ -141,30 +200,99 @@ def create_alert_channel(
     return db_channel
 
 
-@router.get("/channels", response_model=List[AlertChannelResponse])
+@router.get(
+    "/channels",
+    response_model=List[AlertChannelResponse],
+    summary="List alert channels",
+    description="""
+    Get all alert channels configured for your organization.
+    
+    Shows which notification channels are active and when they were created.
+    Sensitive data (like webhook URLs) is not exposed in the list view.
+    """,
+    responses={
+        200: {
+            "description": "List of alert channels",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "id": 1,
+                            "channel_type": "email",
+                            "is_active": True,
+                            "created_at": "2025-11-06T10:30:00Z",
+                            "configured": True
+                        },
+                        {
+                            "id": 2,
+                            "channel_type": "slack",
+                            "is_active": True,
+                            "created_at": "2025-11-06T10:35:00Z",
+                            "configured": True
+                        }
+                    ]
+                }
+            }
+        }
+    }
+)
 def list_alert_channels(
     db: Session = Depends(get_db),
     organization: schemas.Organization = Depends(get_organization_from_api_key)
 ):
-    """
-    List all alert channels for the organization.
-    """
+    """List all alert channels for the organization."""
     channels = db.query(models.AlertChannel).filter(
         models.AlertChannel.organization_id == organization.id
     ).all()
     
-    return channels
+    return [
+        {
+            "id": c.id,
+            "channel_type": c.channel_type,
+            "configuration": {},  # Don't expose sensitive data in list view
+            "is_active": c.is_active
+        }
+        for c in channels
+    ]
 
 
-@router.delete("/channels/{channel_id}")
+@router.delete(
+    "/channels/{channel_id}",
+    summary="Delete an alert channel",
+    description="""
+    Remove an alert channel. You will stop receiving notifications through this channel.
+    
+    **Example:**
+    ```bash
+    curl -X DELETE https://api.cognitude.io/alerts/channels/1 \\
+      -H "X-API-Key: your-api-key"
+    ```
+    """,
+    responses={
+        200: {
+            "description": "Channel deleted successfully",
+            "content": {
+                "application/json": {
+                    "example": {"success": True, "message": "Alert channel deleted"}
+                }
+            }
+        },
+        404: {
+            "description": "Alert channel not found",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Alert channel not found"}
+                }
+            }
+        }
+    }
+)
 def delete_alert_channel(
     channel_id: int,
     db: Session = Depends(get_db),
     organization: schemas.Organization = Depends(get_organization_from_api_key)
 ):
-    """
-    Delete an alert channel.
-    """
+    """Delete an alert channel."""
     channel = db.query(models.AlertChannel).filter(
         models.AlertChannel.id == channel_id,
         models.AlertChannel.organization_id == organization.id
@@ -176,7 +304,7 @@ def delete_alert_channel(
     db.delete(channel)
     db.commit()
     
-    return {"message": "Alert channel deleted"}
+    return {"success": True, "message": "Alert channel deleted"}
 
 
 # ============================================================================
@@ -305,12 +433,20 @@ def test_alert_channel(
         raise HTTPException(status_code=404, detail="Alert channel not found")
     
     notification_service = NotificationService(db)
+    # Get the configuration as a Python dict from the JSONB column
     config = channel.configuration
+    if hasattr(config, '__getitem__'):
+        config_dict = config
+    else:
+        # Fallback for type checking issues
+        config_dict = {}
+    
     success = False
     
-    if channel.channel_type == "slack" and config.get("webhook_url"):
+    if channel.channel_type == "slack" and config_dict and config_dict.get("webhook_url"):
+        webhook_url = str(config_dict["webhook_url"])
         success = notification_service.send_slack_notification(
-            webhook_url=config["webhook_url"],
+            webhook_url=webhook_url,
             title="🧪 Test Notification",
             message="This is a test notification from Cognitude. Your Slack integration is working correctly!",
             color="#36a64f",
@@ -320,9 +456,10 @@ def test_alert_channel(
             ]
         )
     
-    elif channel.channel_type == "email" and config.get("email"):
+    elif channel.channel_type == "email" and config_dict and config_dict.get("email"):
+        email = str(config_dict["email"])
         success = notification_service.send_email_notification(
-            to_email=config["email"],
+            to_email=email,
             subject="🧪 Test Notification from Cognitude",
             body_html="""
             <html>
@@ -335,9 +472,10 @@ def test_alert_channel(
             """
         )
     
-    elif channel.channel_type == "webhook" and config.get("webhook_url"):
+    elif channel.channel_type == "webhook" and config_dict and config_dict.get("webhook_url"):
+        webhook_url = str(config_dict["webhook_url"])
         success = notification_service.send_webhook_notification(
-            webhook_url=config["webhook_url"],
+            webhook_url=webhook_url,
             payload={
                 "event": "test_notification",
                 "organization_name": organization.name,

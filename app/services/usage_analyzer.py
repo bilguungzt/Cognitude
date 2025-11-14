@@ -78,7 +78,7 @@ class UsageAnalyzer:
             models.LLMRequest.organization_id == self.organization_id,
             models.LLMRequest.timestamp >= cutoff_date,
             models.LLMRequest.cache_key.isnot(None),
-            models.LLMRequest.cached == False
+            models.LLMRequest.cache_hit == False
         ).group_by(
             models.LLMRequest.cache_key
         ).having(
@@ -133,7 +133,7 @@ class UsageAnalyzer:
         ).filter(
             models.LLMRequest.organization_id == self.organization_id,
             models.LLMRequest.timestamp >= cutoff_date,
-            models.LLMRequest.cached == False
+            models.LLMRequest.cache_hit == False
         ).group_by(
             models.LLMRequest.model
         ).all()
@@ -206,7 +206,7 @@ class UsageAnalyzer:
         ).filter(
             models.LLMRequest.organization_id == self.organization_id,
             models.LLMRequest.timestamp >= cutoff_date,
-            models.LLMRequest.cached == False,
+            models.LLMRequest.cache_hit == False,
             models.LLMRequest.completion_tokens.isnot(None)
         ).all()
         
@@ -262,7 +262,7 @@ class UsageAnalyzer:
         total_requests = self.db.query(func.count(models.LLMRequest.id)).filter(
             models.LLMRequest.organization_id == self.organization_id,
             models.LLMRequest.timestamp >= cutoff_date,
-            models.LLMRequest.cached == False
+            models.LLMRequest.cache_hit == False
         ).scalar()
         
         if not total_requests or total_requests < 10:
@@ -275,7 +275,7 @@ class UsageAnalyzer:
             models.LLMRequest.organization_id == self.organization_id,
             models.LLMRequest.timestamp >= cutoff_date,
             models.LLMRequest.model.in_(['gpt-4', 'gpt-4-turbo', 'claude-3-opus']),
-            models.LLMRequest.cached == False
+            models.LLMRequest.cache_hit == False
         ).scalar() or 0
         
         expensive_cost = float(expensive_model_cost)
@@ -320,7 +320,7 @@ class UsageAnalyzer:
             models.LLMRequest.organization_id == self.organization_id,
             models.LLMRequest.timestamp >= cutoff_date,
             models.LLMRequest.prompt_tokens > 2000,  # Very long prompts
-            models.LLMRequest.cached == False
+            models.LLMRequest.cache_hit == False
         ).first()
         
         if high_token_requests and high_token_requests.count > 0:
@@ -383,7 +383,7 @@ class UsageAnalyzer:
         ).filter(
             models.LLMRequest.organization_id == self.organization_id,
             models.LLMRequest.timestamp >= cutoff_date,
-            models.LLMRequest.cached == True
+            models.LLMRequest.cache_hit == True
         ).first()
         
         # By model
@@ -419,7 +419,7 @@ class UsageAnalyzer:
             func.date(models.LLMRequest.timestamp).label('date'),
             func.count(models.LLMRequest.id).label('requests'),
             func.sum(models.LLMRequest.cost_usd).label('cost'),
-            func.sum(func.cast(models.LLMRequest.cached, func.Integer)).label('cached_requests')
+            func.sum(func.cast(models.LLMRequest.cache_hit, func.Integer)).label('cached_requests')
         ).filter(
             models.LLMRequest.organization_id == self.organization_id,
             models.LLMRequest.timestamp >= cutoff_date

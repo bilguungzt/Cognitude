@@ -23,7 +23,87 @@ from ..limiter import limiter
 router = APIRouter(tags=["proxy"])
 
 
-@router.post("/v1/chat/completions", response_model=schemas.ChatCompletionResponse)
+@router.post("/v1/chat/completions",
+             response_model=schemas.ChatCompletionResponse,
+             responses={
+                 200: {
+                     "description": "Successful response",
+                     "content": {
+                         "application/json": {
+                             "example": {
+                                 "id": "chatcmpl-abc123",
+                                 "object": "chat.completion",
+                                 "created": 170490240,
+                                 "model": "gpt-3.5-turbo",
+                                 "choices": [
+                                     {
+                                         "index": 0,
+                                         "message": {
+                                             "role": "assistant",
+                                             "content": "Hello! How can I help you today?"
+                                         },
+                                         "finish_reason": "stop"
+                                     }
+                                 ],
+                                 "usage": {
+                                     "prompt_tokens": 10,
+                                     "completion_tokens": 12,
+                                     "total_tokens": 22
+                                 },
+                                 "x-cognitude": {
+                                     "cached": False,
+                                     "cost": 0.0024,
+                                     "provider": "openai",
+                                     "cache_key": "chat:gpt-3.5-turbo:hash123"
+                                 }
+                             }
+                         }
+                     }
+                 },
+                 401: {
+                     "description": "Invalid or missing API key",
+                     "content": {
+                         "application/json": {
+                             "example": {
+                                 "error": {
+                                     "message": "Invalid or missing API Key",
+                                     "type": "authentication_error",
+                                     "code": "INVALID_API_KEY"
+                                 }
+                             }
+                         }
+                     }
+                 },
+                 429: {
+                     "description": "Rate limit exceeded",
+                     "content": {
+                         "application/json": {
+                             "example": {
+                                 "error": {
+                                     "message": "Rate limit exceeded",
+                                     "type": "rate_limit_error",
+                                     "code": "RATE_LIMIT_EXCEEDED",
+                                     "retry_after": 60
+                                 }
+                             }
+                         }
+                     }
+                 },
+                 500: {
+                     "description": "Internal server error",
+                     "content": {
+                         "application/json": {
+                             "example": {
+                                 "error": {
+                                     "message": "Internal server error",
+                                     "type": "api_error",
+                                     "code": "INTERNAL_ERROR"
+                                 }
+                             }
+                         }
+                     }
+                 }
+             })
 @limiter.limit("100/minute")
 async def chat_completions(
     request_body: schemas.ChatCompletionRequest,
@@ -179,16 +259,91 @@ async def chat_completions(
     final_response_dict["x-cognitude"] = autopilot_metadata
     
     return final_response_dict
-
-
-@router.get("/v1/models")
+@router.get("/v1/models",
+             responses={
+                 200: {
+                     "description": "List of available models",
+                     "content": {
+                         "application/json": {
+                             "example": {
+                                 "object": "list",
+                                 "data": [
+                                     {
+                                         "id": "gpt-4",
+                                         "object": "model",
+                                         "owned_by": "openai"
+                                     },
+                                     {
+                                         "id": "claude-3-opus",
+                                         "object": "model",
+                                         "owned_by": "anthropic"
+                                     }
+                                 ]
+                             }
+                         }
+                     }
+                 },
+                 401: {
+                     "description": "Invalid or missing API key",
+                     "content": {
+                         "application/json": {
+                             "example": {
+                                 "error": {
+                                     "message": "Invalid or missing API Key",
+                                     "type": "authentication_error",
+                                     "code": "INVALID_API_KEY"
+                                 }
+                             }
+                         }
+                     }
+                 },
+                 500: {
+                     "description": "Internal server error",
+                     "content": {
+                         "application/json": {
+                             "example": {
+                                 "error": {
+                                     "message": "Internal server error",
+                                     "type": "api_error",
+                                     "code": "INTERNAL_ERROR"
+                                 }
+                             }
+                         }
+                     }
+                 }
+             })
 async def list_models(
     db: Session = Depends(get_db),
     organization: schemas.Organization = Depends(get_organization_from_api_key)
 ):
+
     """
     List available models based on configured providers.
     OpenAI-compatible endpoint.
+    
+    ## Authentication
+    This endpoint requires API key authentication. You can authenticate using:
+    - `X-API-Key: your-api-key` header
+    - `Authorization: Bearer your-api-key` header (OpenAI-compatible format)
+    
+    **Example:**
+    ```bash
+    curl https://api.cognitude.io/v1/models \\
+      -H "Authorization: Bearer cog_abc123def456..."
+    ```
+    
+    ## Response
+    Returns a list of available models based on your configured providers.
+    Each model includes:
+    - `id`: Model identifier (e.g., "gpt-4", "claude-3-opus")
+    - `object`: Always "model"
+    - `owned_by`: Provider name (e.g., "openai", "anthropic")
+    
+    ## Error Responses
+    Common error codes:
+    - `401`: Invalid or missing API key
+    - `403`: Insufficient permissions
+    - `500`: Internal server error
     """
     provider_router = ProviderRouter(db, organization.id)
     providers = provider_router.get_providers(enabled_only=True)

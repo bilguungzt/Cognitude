@@ -39,7 +39,23 @@ def upgrade() -> None:
     op.drop_table('api_logs', if_exists=True)
     
     # ============================================================================
-    # Step 2: Create LLM Requests table
+    # Step 2: Create Organizations table
+    # ============================================================================
+    print("Creating organizations table...")
+    
+    op.create_table(
+        'organizations',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('name', sa.String(), nullable=False),
+        sa.Column('api_key_hash', sa.String(length=255), nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('name'),
+        sa.UniqueConstraint('api_key_hash')
+    )
+
+    # ============================================================================
+    # Step 3: Create LLM Requests table
     # ============================================================================
     print("Creating llm_requests table...")
     

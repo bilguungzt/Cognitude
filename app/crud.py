@@ -549,3 +549,79 @@ def get_failed_validation_logs(db: Session, organization_id: int) -> List[models
         models.SchemaValidationLog.organization_id == organization_id,
         models.SchemaValidationLog.is_valid == False
     ).all()
+
+
+# ============================================================================
+# Provider Config CRUD
+# ============================================================================
+
+def create_provider_config(
+    db: Session,
+    organization_id: int,
+    provider: str,
+    api_key: str,
+    enabled: bool = True,
+    priority: int = 1
+) -> models.ProviderConfig:
+    """Create a new provider configuration."""
+    db_provider = models.ProviderConfig(
+        organization_id=organization_id,
+        provider=provider,
+        api_key_encrypted=api_key,  # Note: should be encrypted in production
+        enabled=enabled,
+        priority=priority
+    )
+    db.add(db_provider)
+    db.commit()
+    db.refresh(db_provider)
+    return db_provider
+
+
+def get_provider_configs(
+    db: Session,
+    organization_id: int,
+    enabled_only: bool = False
+) -> List[models.ProviderConfig]:
+    """Get provider configurations for an organization."""
+    query = db.query(models.ProviderConfig).filter(
+        models.ProviderConfig.organization_id == organization_id
+    )
+    if enabled_only:
+        query = query.filter(models.ProviderConfig.enabled == True)
+    return query.all()
+
+
+def update_provider_config(
+    db: Session,
+    config_id: int,
+    updates: Dict[str, Any]
+) -> Optional[models.ProviderConfig]:
+    """Update a provider configuration."""
+    provider = db.query(models.ProviderConfig).filter(
+        models.ProviderConfig.id == config_id
+    ).first()
+    
+    if not provider:
+        return None
+    
+    for key, value in updates.items():
+        if hasattr(provider, key):
+            setattr(provider, key, value)
+    
+    db.commit()
+    db.refresh(provider)
+    return provider
+
+
+def delete_provider_config(db: Session, config_id: int) -> bool:
+    """Delete a provider configuration."""
+    provider = db.query(models.ProviderConfig).filter(
+        models.ProviderConfig.id == config_id
+    ).first()
+    
+    if not provider:
+        return False
+    
+    db.delete(provider)
+    db.commit()
+    return True
