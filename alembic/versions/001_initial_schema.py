@@ -246,7 +246,7 @@ def upgrade() -> None:
     op.create_index('idx_schema_validation_logs_schema', 'schema_validation_logs', ['schema_id'])
     op.create_index('idx_schema_validation_logs_timestamp', 'schema_validation_logs', ['timestamp'])
     
-    print("✅ Initial schema migration complete")
+    print("Initial schema migration complete")
 
 
 def downgrade() -> None:
@@ -288,4 +288,4 @@ def downgrade() -> None:
     print("Dropping organizations table...")
     op.drop_table('organizations')
     
-    print("✅ Downgrade complete")
+    print("Downgrade complete")

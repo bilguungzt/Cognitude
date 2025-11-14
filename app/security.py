@@ -43,7 +43,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 def create_api_key() -> str:
-    return secrets.token_urlsafe(32)
+    # Generate a shorter token to stay within bcrypt's 72-byte limit
+    # token_urlsafe(24) produces ~32 characters, well under the 72-byte limit
+    return secrets.token_urlsafe(24)
 
 # get_db() function removed - use the one from app.database instead
 
