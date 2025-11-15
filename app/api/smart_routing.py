@@ -151,9 +151,9 @@ async def smart_completions(
     
     # Call LLM via Autopilot directly
     from ..core.autopilot import AutopilotEngine
-    from ..services.redis_cache import redis_cache
+    from ..services.cache_service import cache_service
     
-    autopilot = AutopilotEngine(db, redis_cache, provider_router)
+    autopilot = AutopilotEngine(db, cache_service, provider_router)
     result = await autopilot.process_request(standard_request, org_model, selected_provider)
     response = result['response']
     

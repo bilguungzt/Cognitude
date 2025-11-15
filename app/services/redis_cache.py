@@ -3,10 +3,12 @@ Redis-based caching service for LLM responses.
 Provides fast cache lookups (<10ms) with automatic TTL expiration.
 """
 import json
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
 from datetime import datetime, timedelta
 
 from app.config import get_settings
+from app.core.cache_keys import CacheKeyBuilder
+from app import schemas
 
 settings = get_settings()
 
@@ -98,7 +100,34 @@ class RedisCache:
                 self.redis = None
                 self.available = False
     
-    def get(self, cache_key: str, organization_id: int) -> Optional[Dict[str, Any]]:
+    def _format_key(self, cache_key: str) -> str:
+        return f"llm_cache:{cache_key}"
+
+    def _resolve_cache_key(
+        self,
+        organization_id: int,
+        request_or_key: Union[str, schemas.ChatCompletionRequest],
+        *,
+        model_override: Optional[str] = None,
+        extra_metadata: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        if isinstance(request_or_key, str):
+            return request_or_key
+        return CacheKeyBuilder.chat_completion_key(
+            organization_id,
+            request_or_key,
+            model_override=model_override,
+            extra_metadata=extra_metadata,
+        )
+
+    def get(
+        self,
+        organization_id: int,
+        request_or_key: Union[str, schemas.ChatCompletionRequest],
+        *,
+        model_override: Optional[str] = None,
+        extra_metadata: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
         """
         Get cached LLM response from Redis.
         
@@ -113,8 +142,13 @@ class RedisCache:
             return None
         
         try:
-            # Build Redis key with organization prefix
-            redis_key = f"llm_cache:{organization_id}:{cache_key}"
+            cache_key = self._resolve_cache_key(
+                organization_id,
+                request_or_key,
+                model_override=model_override,
+                extra_metadata=extra_metadata,
+            )
+            redis_key = self._format_key(cache_key)
             
             # Get cached data
             cached_data = self.redis.get(redis_key)
@@ -142,16 +176,19 @@ class RedisCache:
             return None
     
     def set(
-        self, 
-        cache_key: str, 
-        organization_id: int, 
+        self,
+        organization_id: int,
+        request_or_key: Union[str, schemas.ChatCompletionRequest],
         response_data: Dict[str, Any],
+        *,
         model: str,
         provider: str,
         prompt_tokens: int,
         completion_tokens: int,
         cost_usd: float,
-        ttl_hours: int = 24
+        ttl_hours: int = 24,
+        model_override: Optional[str] = None,
+        extra_metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
         Store LLM response in Redis cache.
@@ -174,7 +211,13 @@ class RedisCache:
             return False
         
         try:
-            redis_key = f"llm_cache:{organization_id}:{cache_key}"
+            cache_key = self._resolve_cache_key(
+                organization_id,
+                request_or_key,
+                model_override=model_override,
+                extra_metadata=extra_metadata,
+            )
+            redis_key = self._format_key(cache_key)
             
             # Store response data with TTL
             cache_entry = {
@@ -209,6 +252,33 @@ class RedisCache:
             print(f"Redis SET error: {e}")
             return False
     
+    def delete(
+        self,
+        organization_id: int,
+        request_or_key: Union[str, schemas.ChatCompletionRequest],
+        *,
+        model_override: Optional[str] = None,
+        extra_metadata: Optional[Dict[str, Any]] = None,
+    ) -> int:
+        """
+        Delete a specific cache entry.
+        """
+        if not self.available or not self.redis:
+            return 0
+
+        cache_key = self._resolve_cache_key(
+            organization_id,
+            request_or_key,
+            model_override=model_override,
+            extra_metadata=extra_metadata,
+        )
+        redis_key = self._format_key(cache_key)
+        try:
+            return int(self.redis.delete(redis_key) or 0)
+        except Exception as e:
+            print(f"Redis DELETE error: {e}")
+            return 0
+
     def get_stats(self, organization_id: int) -> Dict[str, Any]:
         """
         Get cache statistics for an organization.

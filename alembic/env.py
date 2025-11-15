@@ -6,6 +6,8 @@ sys.path.append(os.getcwd())
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.compiler import compiles
 from alembic import context
 
 import sys
@@ -15,6 +17,12 @@ sys.path.insert(0, dirname(dirname(abspath(__file__))))
 # Import your models for autogenerate support
 from app.database import Base
 from app.models import *
+
+
+@compiles(JSONB, "sqlite")
+def _jsonb_sqlite(element, compiler, **kw):
+    """Allow migrations to run against SQLite by mapping JSONB to JSON."""
+    return "JSON"
 
 # this is the Alembic Config object
 config = context.config

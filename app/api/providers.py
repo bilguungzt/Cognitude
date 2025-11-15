@@ -5,9 +5,10 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .. import crud, schemas
+from .. import schemas
 from ..database import get_db
 from ..security import get_organization_from_api_key
+from ..repositories.provider_repository import ProviderRepository
 import logging
 import traceback
 
@@ -32,15 +33,8 @@ def create_provider(
             raise ValueError("Provider name and API key are required")
             
         # create_provider_config expects (db, organization_id, provider, api_key_encrypted, enabled?, priority?)
-        db_provider = crud.create_provider_config(
-            db,
-            organization.id,
-            provider.provider,
-            provider.api_key,
-            provider.enabled,
-            provider.priority,
-        )
-        return db_provider
+        repo = ProviderRepository(db)
+        return repo.create(organization.id, provider)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -62,12 +56,8 @@ def list_providers(
     - enabled_only: If true, only return enabled providers
     """
     try:
-        providers = crud.get_provider_configs(
-            db,
-            organization.id,
-            enabled_only=enabled_only,
-        )
-        return providers
+        repo = ProviderRepository(db)
+        return repo.list(organization.id, enabled_only=enabled_only)
     except Exception as e:
         # Log full traceback for debugging and return a 500 with the message
         logging.error("Error listing providers: %s", e)
@@ -82,9 +72,9 @@ def get_provider(
     organization: schemas.Organization = Depends(get_organization_from_api_key)
 ):
     """Get a specific provider configuration."""
-    providers = crud.get_provider_configs(db, organization.id)
-    provider = next((p for p in providers if p.id == provider_id), None)
-    
+    repo = ProviderRepository(db)
+    provider = repo.get(provider_id, organization.id)
+
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
     
@@ -109,16 +99,11 @@ def update_provider(
     """
     try:
         # update_provider_config expects (db, config_id, updates)
-        updated_provider = crud.update_provider_config(
-            db,
-            provider_id,
-            provider_update,
-        )
-        
-        if not updated_provider:
+        repo = ProviderRepository(db)
+        updated = repo.update(provider_id, organization.id, provider_update)
+        if not updated:
             raise HTTPException(status_code=404, detail="Provider not found")
-        
-        return updated_provider
+        return updated
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -130,8 +115,8 @@ def delete_provider(
     organization: schemas.Organization = Depends(get_organization_from_api_key)
 ):
     """Delete a provider configuration."""
-    # delete_provider_config expects (db, config_id)
-    success = crud.delete_provider_config(db, provider_id)
+    repo = ProviderRepository(db)
+    success = repo.delete(provider_id, organization.id)
     
     if not success:
         raise HTTPException(status_code=404, detail="Provider not found")

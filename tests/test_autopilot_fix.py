@@ -41,8 +41,8 @@ async def test_model_compatibility_logic():
     
     # Create an autopilot instance
     db = MockDB()
-    redis_client = None  # Not needed for this test
-    autopilot = AutopilotEngine(db, redis_client)
+    cache_service = None  # Not needed for this test
+    autopilot = AutopilotEngine(db, cache_service)
     
     # Test the logic for Google provider with incompatible model
     provider = MockProvider("google")

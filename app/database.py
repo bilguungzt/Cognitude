@@ -1,3 +1,5 @@
+import logging
+
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -6,7 +8,39 @@ from app.config import get_settings
 
 settings = get_settings()
 
-engine = create_engine(str(settings.DATABASE_URL))
+logger = logging.getLogger(__name__)
+
+_SQLITE_FALLBACK_URL = "sqlite:///./test.db"
+
+
+def _create_engine():
+    db_url = settings.DATABASE_URL
+    if not db_url:
+        logger.warning(
+            "DATABASE_URL not set. Falling back to %s for local/test usage.",
+            _SQLITE_FALLBACK_URL,
+        )
+        return create_engine(
+            _SQLITE_FALLBACK_URL,
+            connect_args={"check_same_thread": False},
+        )
+
+    try:
+        return create_engine(str(db_url))
+    except Exception as exc:
+        logger.error("Failed to initialize engine for %s: %s", db_url, exc)
+        logger.warning(
+            "Falling back to lightweight SQLite database at %s. "
+            "Set DATABASE_URL to a production-ready database for persistent storage.",
+            _SQLITE_FALLBACK_URL,
+        )
+        return create_engine(
+            _SQLITE_FALLBACK_URL,
+            connect_args={"check_same_thread": False},
+        )
+
+
+engine = _create_engine()
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

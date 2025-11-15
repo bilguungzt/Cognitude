@@ -21,7 +21,8 @@ def test_registration():
         org = crud.create_organization(
             db=db,
             organization=schemas.OrganizationCreate(name=test_name),
-            api_key_hash=hashed_api_key
+            api_key_hash=hashed_api_key,
+            api_key_digest=security.compute_api_key_digest(api_key),
         )
 
         print(f"Success! Organization ID: {org.id}, Name: {org.name}")

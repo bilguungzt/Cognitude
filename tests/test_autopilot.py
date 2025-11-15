@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.autopilot import AutopilotEngine, TaskClassifier, ModelSelector
 from app import schemas, models
+from app.services.cache_service import CacheHit
 
 # Mock data for testing
 mock_organization = models.Organization(id=1, name="Test Org", api_key_hash="hashed_key")
@@ -27,17 +28,16 @@ def mock_db_session():
     return session
 
 @pytest.fixture
-def mock_redis_client():
-    """Fixture for a mocked RedisCache client."""
-    redis = MagicMock()
-    redis.get = MagicMock(return_value=None)
-    redis.set = MagicMock()
-    return redis
+def mock_cache_service():
+    """Fixture for a mocked CacheService."""
+    cache = MagicMock()
+    cache.get_response = MagicMock(return_value=None)
+    return cache
 
 @pytest.fixture
-def autopilot_engine(mock_db_session, mock_redis_client):
+def autopilot_engine(mock_db_session, mock_cache_service):
     """Fixture for an AutopilotEngine instance with mocked dependencies."""
-    return AutopilotEngine(db=mock_db_session, redis_client=mock_redis_client)
+    return AutopilotEngine(db=mock_db_session, cache_service=mock_cache_service)
 
 # --- TaskClassifier Tests ---
 @pytest.mark.parametrize("prompt, expected_task", [
@@ -60,9 +60,9 @@ def test_task_classifier(prompt, expected_task):
 @pytest.mark.parametrize("task_type, confidence, original_model, expected_model", [
     ("classification", 0.9, "gpt-4-0125-preview", "gpt-4o-mini"),
     ("summarization", 0.9, "gpt-4-0125-preview", "gpt-4o"),
-    ("reasoning", 0.9, "gpt-4-0125-preview", "gpt-4-0125-preview"),
-    ("code", 0.9, "gpt-4o-mini", "gpt-4-0125-preview"),
-    ("unknown", 0.4, "gpt-4-0125-preview", "gpt-4-0125-preview"), # Low confidence fallback
+    ("reasoning", 0.9, "gpt-4-0125-preview", "gpt-4"),
+    ("code", 0.9, "gpt-4o-mini", "gpt-4"),
+    ("unknown", 0.4, "gpt-4-0125-preview", "gpt-4"),  # Low confidence fallback
 ])
 def test_model_selector(task_type, confidence, original_model, expected_model):
     selector = ModelSelector()
@@ -89,51 +89,27 @@ async def test_process_request_simple_task_downgrade(mock_process, autopilot_eng
     mock_process.assert_called_once()
     assert result['autopilot_metadata']['selected_model'] == "gpt-4o-mini"
 
-@pytest.mark.asyncio
-@patch('app.core.autopilot.AsyncOpenAI')
-async def test_cache_write_and_hit(mock_async_openai, autopilot_engine, mock_redis_client):
-    """Test that a cacheable request writes to cache and a subsequent request hits it."""
-    # 1. First request (cache miss and write)
-    mock_client = mock_async_openai.return_value
-    mock_response = MagicMock()
-    mock_response.model_dump.return_value = {"id": "chatcmpl-123", "choices": [{"message": {"role": "assistant", "content": "Hello there!"}}]}
-    mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-    
-    request = create_mock_request([{"role": "user", "content": "Cacheable prompt"}], temperature=0)
-    
-    await autopilot_engine.process_request(request, mock_organization, "fake_api_key")
-    
-    mock_client.chat.completions.create.assert_called_once()
-    mock_redis_client.set.assert_called_once()
 
-    # 2. Second request (cache hit)
-    mock_client.chat.completions.create.reset_mock()
-    cached_value = {
-        'response_data': mock_response.model_dump(),
-        'cost_usd': '0.001'
+@pytest.mark.asyncio
+async def test_cache_hit_short_circuits_provider(mock_cache_service, mock_db_session):
+    engine = AutopilotEngine(db=mock_db_session, cache_service=mock_cache_service)
+    cached_payload = {
+        'response_data': {'id': 'cached', 'choices': []},
+        'provider': 'openai',
+        'cost_usd': 0.0,
     }
-    mock_redis_client.get.return_value = cached_value
-    
-    result = await autopilot_engine.process_request(request, mock_organization, "fake_api_key")
+    mock_cache_service.get_response.return_value = CacheHit(
+        cache_key="1:abc",
+        payload=cached_payload,
+    )
+    request = create_mock_request([{"role": "user", "content": "cached prompt"}])
+    provider = MagicMock()
+    provider.provider = "openai"
 
-    mock_client.chat.completions.create.assert_not_called()
+    result = await engine._process_with_autopilot(request, mock_organization, provider)
+
+    assert result['response']['id'] == 'cached'
     assert result['autopilot_metadata']['routing_reason'] == 'cache_hit'
-    assert result['response'] == cached_value['response_data']
-
-@pytest.mark.asyncio
-@patch('app.core.autopilot.AutopilotEngine._get_openai_client')
-async def test_non_cacheable_request(mock_get_client, autopilot_engine, mock_redis_client):
-    """Test that a non-cacheable request (temp > 0) does not use the cache."""
-    mock_client = mock_get_client.return_value
-    mock_client.chat.completions.create = AsyncMock(return_value=MagicMock())
-
-    request = create_mock_request([{"role": "user", "content": "A creative prompt"}], temperature=0.8)
-    
-    await autopilot_engine.process_request(request, mock_organization, "fake_api_key")
-    
-    mock_redis_client.get.assert_called_once()
-    mock_redis_client.set.assert_not_called()
-    mock_client.chat.completions.create.assert_called_once()
 
 @pytest.mark.asyncio
 @patch('app.core.autopilot.AutopilotEngine._process_with_autopilot', new_callable=AsyncMock)

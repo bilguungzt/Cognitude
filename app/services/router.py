@@ -1,6 +1,7 @@
 """
 Multi-provider routing and API client management.
 """
+import asyncio
 from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
 import httpx
@@ -63,16 +64,20 @@ class ProviderRouter:
         **kwargs
     ) -> Dict[str, Any]:
         """Call OpenAI API."""
-        try:
-            from openai import OpenAI
-            client = OpenAI(api_key=api_key)
-            
+        request_timeout = kwargs.pop("request_timeout", 60.0)
+
+        def _execute_call():
+            try:
+                from openai import OpenAI
+            except ImportError as exc:
+                raise Exception("openai package not installed") from exc
+
+            client = OpenAI(api_key=api_key, timeout=request_timeout)
             completion = client.chat.completions.create(
                 model=model,
                 messages=messages,  # type: ignore
-                **kwargs
+                **kwargs,
             )
-            
             return {
                 "id": completion.id,
                 "model": completion.model,
@@ -94,8 +99,9 @@ class ProviderRouter:
                     for choice in completion.choices
                 ],
             }
-        except ImportError:
-            raise Exception("openai package not installed")
+
+        try:
+            return await asyncio.to_thread(_execute_call)
         except Exception as e:
             raise Exception(f"OpenAI API error: {str(e)}")
     
@@ -116,7 +122,8 @@ class ProviderRouter:
             else:
                 anthropic_messages.append({"role": msg["role"], "content": msg["content"]})
         
-        async with httpx.AsyncClient() as client:
+        timeout = kwargs.get("request_timeout", 60.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
             headers = {
                 "x-api-key": api_key,
                 "anthropic-version": "2023-06-01",
@@ -138,7 +145,6 @@ class ProviderRouter:
                 "https://api.anthropic.com/v1/messages",
                 headers=headers,
                 json=payload,
-                timeout=60.0
             )
             
             if response.status_code != 200:
@@ -172,11 +178,12 @@ class ProviderRouter:
         **kwargs
     ) -> Dict[str, Any]:
         """Call Google Gemini API."""
-        try:
+        request_timeout = kwargs.get("request_timeout", 60.0)
+
+        def _execute_call():
             import google.generativeai as genai
             from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
-            # Configure the API key
             genai.configure(api_key=api_key)
 
             model_map = {
@@ -185,7 +192,6 @@ class ProviderRouter:
             }
             gemini_model_name = model_map.get(model, model)
 
-            # Create the generative model
             gen_model = genai.GenerativeModel(
                 model_name=gemini_model_name,
                 safety_settings={
@@ -203,39 +209,34 @@ class ProviderRouter:
                 "max_output_tokens": kwargs.get("max_tokens", 2048),
             }
 
-            system_instruction = None
             contents = []
             for msg in messages:
                 if msg["role"] == "system":
-                    system_instruction = msg["content"]
-                else:
-                    contents.append({"role": "user" if msg["role"] == "user" else "model", "parts": [msg["content"]]})
+                    continue
+                contents.append({"role": "user" if msg["role"] == "user" else "model", "parts": [msg["content"]]})
 
             response = gen_model.generate_content(
                 contents,
-                generation_config=generation_config, # type: ignore
+                generation_config=generation_config,  # type: ignore
                 stream=False,
             )
-            
+
             response_text = ""
             if response.candidates and response.candidates[0].content.parts:
                 response_text = "".join(part.text for part in response.candidates[0].content.parts)
-            elif response.prompt_feedback.block_reason:
-                 response_text = f"Request blocked due to {response.prompt_feedback.block_reason.name}"
+            elif getattr(response.prompt_feedback, "block_reason", None):
+                response_text = f"Request blocked due to {response.prompt_feedback.block_reason.name}"
             else:
                 response_text = "No response from model."
 
-            # Count tokens using the model
-            prompt_tokens = 0
-            completion_tokens = 0
             try:
                 prompt_tokens = gen_model.count_tokens(contents).total_tokens
-            except:
+            except Exception:
                 prompt_tokens = len(str(contents))
-            
+
             try:
                 completion_tokens = gen_model.count_tokens(response_text).total_tokens
-            except:
+            except Exception:
                 completion_tokens = len(response_text)
 
             return {
@@ -256,9 +257,11 @@ class ProviderRouter:
                     "total_tokens": prompt_tokens + completion_tokens,
                 },
             }
+
+        try:
+            return await asyncio.to_thread(_execute_call)
         except Exception as e:
             error_msg = str(e)
-            # Check if it's an authentication error
             if "403" in error_msg or "API key" in error_msg or "authentication" in error_msg.lower():
                 raise Exception(f"Google Gemini authentication error: {error_msg}. Please verify your API key is correct and has not been revoked.")
             else:
@@ -272,21 +275,23 @@ class ProviderRouter:
         **kwargs
     ) -> Dict[str, Any]:
         """Call Groq API (OpenAI-compatible)."""
-        try:
+        request_timeout = kwargs.pop("request_timeout", 60.0)
+
+        def _execute_call():
             from openai import OpenAI
-            
-            # Groq uses OpenAI-compatible API
+
             client = OpenAI(
                 api_key=api_key,
-                base_url="https://api.groq.com/openai/v1"
+                base_url="https://api.groq.com/openai/v1",
+                timeout=request_timeout,
             )
-            
+
             completion = client.chat.completions.create(
                 model=model,
                 messages=messages,  # type: ignore
-                **kwargs
+                **kwargs,
             )
-            
+
             return {
                 "id": completion.id,
                 "model": completion.model,
@@ -308,6 +313,9 @@ class ProviderRouter:
                     for choice in completion.choices
                 ],
             }
+
+        try:
+            return await asyncio.to_thread(_execute_call)
         except Exception as e:
             raise Exception(f"Groq API error: {str(e)}")
 

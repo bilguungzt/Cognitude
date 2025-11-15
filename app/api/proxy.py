@@ -12,7 +12,7 @@ from .. import crud, models, schemas
 from ..database import get_db
 from ..security import get_organization_from_api_key
 from ..services.router import ProviderRouter
-from ..services.redis_cache import redis_cache
+from ..services.cache_service import cache_service
 from ..core.autopilot import AutopilotEngine
 from ..core.schema_enforcer import SchemaEnforcer
 from ..config import get_settings
@@ -60,7 +60,7 @@ async def proxy_chat_completion(
         
         # Initialize services
         provider_router = ProviderRouter(db, org_id)
-        autopilot = AutopilotEngine(db, redis_cache, provider_router)
+        autopilot = AutopilotEngine(db, cache_service, provider_router)
         schema_enforcer = SchemaEnforcer(db, llm_provider=provider_router)
         
         # Check for schema enforcement
@@ -75,24 +75,6 @@ async def proxy_chat_completion(
                 raise HTTPException(status_code=400, detail="Invalid JSON in x-cognitude-schema header")
             except Exception as e:
                 raise HTTPException(status_code=400, detail=f"Schema validation error: {str(e)}")
-        
-        # Try cache first
-        cache_key = None
-        cached_response = None  # Initialize to avoid unbound variable error
-        if getattr(settings, 'CACHE_ENABLED', False):
-            cache_key = f"llm_cache:{org_id}:{hash(str(request_body.model) + str(request_body.messages))}"
-            cached_response = redis_cache.get(cache_key, org_id)
-            
-            if cached_response:
-                response_data = cached_response.get("response_data", {})
-                response_data["x-cognitude"] = {
-                    "cached": True,
-                    "hit": True,
-                    "cost": 0.0,  # Cached responses have zero cost
-                    "provider": response_data.get("model", "unknown"),
-                    "cache_key": cache_key
-                }
-                return response_data
         
         # Get provider for the request
         provider = provider_router.select_provider(request_body.model)
@@ -125,6 +107,7 @@ async def proxy_chat_completion(
                     # Log validation failure
                     schema_enforcer._log_validation(
                         project_id=org_id,
+                        schema=schema,
                         request=request_body.model_dump(),
                         response=current_response,
                         is_valid=False,
@@ -173,6 +156,7 @@ async def proxy_chat_completion(
         # Calculate costs and update response
         provider_info = autopilot_metadata.get("provider_info", {})
         cost = provider_info.get("cost", 0.0)
+        cache_hit = bool(autopilot_metadata.get("cache_key"))
         
         # Add cognitude metadata
         response_data["x-cognitude"] = {
@@ -180,24 +164,25 @@ async def proxy_chat_completion(
             "hit": False,
             "cost": float(cost),
             "provider": provider_info.get("name", "unknown"),
-            "cache_key": cache_key,
+            "cache_key": autopilot_metadata.get("cache_key"),
             "routing_metadata": autopilot_metadata
         }
         
-        # Cache the response if caching is enabled
-        if getattr(settings, 'CACHE_ENABLED', False) and cache_key:
-            ttl_hours = getattr(settings, 'CACHE_TTL_HOURS', 24)
-            redis_cache.set(
-                cache_key=cache_key,
+        # Cache the response if caching is enabled and this was not a cache hit
+        if getattr(settings, 'CACHE_ENABLED', False) and not cache_hit:
+            cache_key = cache_service.set_response(
+                db=db,
                 organization_id=org_id,
+                request=request_body,
                 response_data=response_data,
-                model=request_body.model,
+                model=autopilot_metadata.get("selected_model", request_body.model),
                 provider=provider_info.get("name", "unknown"),
                 prompt_tokens=response_data.get("usage", {}).get("prompt_tokens", 0),
                 completion_tokens=response_data.get("usage", {}).get("completion_tokens", 0),
                 cost_usd=cost,
-                ttl_hours=ttl_hours
+                model_override=autopilot_metadata.get("selected_model"),
             )
+            response_data["x-cognitude"]["cache_key"] = cache_key
         
         # Log the request
         crud.log_llm_request(
@@ -209,7 +194,7 @@ async def proxy_chat_completion(
             completion_tokens=response_data.get("usage", {}).get("completion_tokens", 0),
             cost_usd=cost,
             latency_ms=int((time.time() - start_time) * 1000),
-            cache_hit=bool(cached_response)  # Now cached_response is always defined
+            cache_hit=cache_hit
         )
         
         return response_data

@@ -2,7 +2,8 @@ import hashlib
 import hmac
 import secrets
 import logging
-from typing import Final
+from functools import lru_cache
+from typing import Final, Optional
 
 from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
@@ -28,6 +29,28 @@ def _get_salt() -> bytes:
     return _DEFAULT_SALT
 
 api_key_header = APIKeyHeader(name="X-API-Key")
+
+
+def compute_api_key_digest(api_key: str) -> str:
+    """Deterministic SHA256 digest for API-key lookups."""
+    return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+
+
+@lru_cache(maxsize=2048)
+def _cached_digest_lookup(digest: str) -> Optional[int]:
+    """Cached lookup to map digests to organization IDs."""
+    db = SessionLocal()
+    try:
+        result = db.query(models.Organization.id).filter(
+            models.Organization.api_key_digest == digest
+        ).first()
+        return result[0] if result else None
+    finally:
+        db.close()
+
+
+def invalidate_api_key_cache() -> None:
+    _cached_digest_lookup.cache_clear()
 
 def get_password_hash(password: str) -> str:
     """Hash a password using bcrypt for secure storage."""
@@ -77,13 +100,37 @@ def get_organization_from_api_key(api_key: str = Security(api_key_header), db: S
             detail="API Key is required",
         )
     
+    normalized_key = api_key.strip()
+    digest = compute_api_key_digest(normalized_key)
+
     try:
-        # Query database for organization with matching API key
-        # The database index on api_key_hash makes this efficient
-        organizations = crud.get_organizations(db)
-        for org in organizations:
-            if org.verify_api_key(api_key):
+        org = None
+        cached_org_id = _cached_digest_lookup(digest)
+        if cached_org_id:
+            org = db.query(models.Organization).filter(
+                models.Organization.id == cached_org_id
+            ).first()
+        if not org:
+            org = db.query(models.Organization).filter(
+                models.Organization.api_key_digest == digest
+            ).first()
+
+        if org and org.api_key_digest and hmac.compare_digest(org.api_key_digest, digest):
+            if org.verify_api_key(normalized_key):
                 return org
+
+        # Fallback for legacy rows without digests
+        organizations = crud.get_organizations(db)
+        for candidate in organizations:
+            stored_digest = candidate.api_key_digest
+            if stored_digest:
+                if hmac.compare_digest(stored_digest, digest) and candidate.verify_api_key(normalized_key):
+                    return candidate
+            elif candidate.verify_api_key(normalized_key):
+                candidate.api_key_digest = digest
+                db.commit()
+                invalidate_api_key_cache()
+                return candidate
 
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -92,7 +139,6 @@ def get_organization_from_api_key(api_key: str = Security(api_key_header), db: S
     except HTTPException:
         raise
     except Exception as e:
-        # Log the error and raise a generic authentication error
         logger = logging.getLogger(__name__)
         logger.error(f"Error during API key verification: {e}")
         raise HTTPException(
@@ -110,9 +156,19 @@ async def verify_api_key(api_key: str = Depends(api_key_header), db: Session = D
             detail="API Key is required",
         )
     
+    normalized_key = api_key.strip()
+    digest = compute_api_key_digest(normalized_key)
+
     organizations = crud.get_organizations(db)
     for org in organizations:
-        if org.verify_api_key(api_key):
+        stored_digest = org.api_key_digest
+        if stored_digest and hmac.compare_digest(stored_digest, digest):
+            if org.verify_api_key(normalized_key):
+                return org
+        elif stored_digest is None and org.verify_api_key(normalized_key):
+            org.api_key_digest = digest
+            db.commit()
+            invalidate_api_key_cache()
             return org
 
     raise HTTPException(

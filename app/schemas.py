@@ -240,7 +240,7 @@ class SchemaValidationLogBase(BaseModel):
     organization_id: int
     llm_request_id: Optional[int] = None
     provided_schema: Dict[str, Any]
-    llm_response: str
+    llm_response: Dict[str, Any]
     is_valid: bool
     validation_error: Optional[str] = None
     retry_count: int = 0

@@ -71,10 +71,10 @@ class SchemaEnforcer:
         is_valid, error_message = self._validate_json_schema(response, schema)
         
         if is_valid:
-            self._log_validation(project_id, request, response, True, "", 0)
+            self._log_validation(project_id, schema, request, response, True, "", 0)
             return response
         else:
-            self._log_validation(project_id, request, response, False, error_message, 0)
+            self._log_validation(project_id, schema, request, response, False, error_message, 0)
             # Just return the original response since retries are handled at the proxy level
             return response
 
@@ -107,14 +107,23 @@ class SchemaEnforcer:
         except Exception as e:
             return False, f"An unexpected error occurred: {e}"
 
-    def _log_validation(self, project_id: int, request: dict, response: dict, is_valid: bool, error: Optional[str], attempt: int):
+    def _log_validation(
+        self,
+        project_id: int,
+        schema: dict,
+        request: dict,
+        response: dict,
+        is_valid: bool,
+        error: Optional[str],
+        attempt: int,
+    ):
         """
         Logs the result of a schema validation attempt to the database.
         """
         log_entry = models.SchemaValidationLog(
             organization_id=project_id,
-            provided_schema=json.dumps(request.get("messages", [])),
-            llm_response=json.dumps(response),
+            provided_schema=schema,
+            llm_response=response,
             is_valid=is_valid,
             validation_error=error,
             retry_count=attempt,

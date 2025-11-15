@@ -7,6 +7,8 @@ This module defines the database schema for:
 - Response caching
 - Multi-provider configurations
 """
+import hashlib
+
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, Numeric, Text, BigInteger
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -30,6 +32,7 @@ class Organization(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True, nullable=False)
     api_key_hash = Column(String(255), unique=True, nullable=False)
+    api_key_digest = Column(String(64), unique=True, nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relationships
@@ -45,6 +48,11 @@ class Organization(Base):
     def hash_api_key(api_key: str) -> str:
         """Hashes an API key using bcrypt."""
         return pwd_context.hash(api_key)
+
+    @staticmethod
+    def digest_api_key(api_key: str) -> str:
+        """Deterministic SHA256 digest used for lookups."""
+        return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
 
     def verify_api_key(self, api_key: str) -> bool:
         """Verifies a plain-text API key against the stored hash.
@@ -113,6 +121,7 @@ class LLMCache(Base):
     __tablename__ = "llm_cache"
 
     cache_key = Column(String(64), primary_key=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
     prompt_hash = Column(String(64), nullable=False, index=True)
     model = Column(String(100), nullable=False)
     response_json = Column(JSONB, nullable=False)
@@ -122,7 +131,7 @@ class LLMCache(Base):
     ttl_hours = Column(Integer, server_default='24', nullable=False)
 
     def __repr__(self):
-        return f"<LLMCache(cache_key='{self.cache_key}', model='{self.model}', hit_count={self.hit_count})>"
+        return f"<LLMCache(org_id={self.organization_id}, cache_key='{self.cache_key}', model='{self.model}', hit_count={self.hit_count})>"
 
 
 # ============================================================================
@@ -321,7 +330,7 @@ class SchemaValidationLog(Base):
 
     # Schema and validation details
     provided_schema = Column(JSONB, nullable=False)
-    llm_response = Column(Text, nullable=False)
+    llm_response = Column(JSONB, nullable=False)
     is_valid = Column(Boolean, nullable=False)
     validation_error = Column(Text, nullable=True)
 

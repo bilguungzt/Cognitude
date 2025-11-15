@@ -8,6 +8,7 @@ from .. import crud, schemas
 from ..database import get_db
 from ..security import get_organization_from_api_key
 from ..services.redis_cache import redis_cache
+from ..services.cache_service import cache_service
 
 
 router = APIRouter(prefix="/cache", tags=["cache"])
@@ -63,15 +64,12 @@ def clear_cache(
     Use with caution.
     """
     # Clear Redis cache for this organization only
-    redis_cleared = redis_cache.clear(organization.id)
-    
-    # Clear PostgreSQL cache for this organization only
-    pg_cleared = crud.clear_cache_for_org(db, organization.id)
+    redis_deleted, postgres_deleted = cache_service.clear_for_org(db, organization.id)
     
     return {
         "message": "Cache cleared successfully",
-        "redis_entries_deleted": redis_cleared,
-        "postgres_entries_deleted": pg_cleared
+        "redis_entries_deleted": redis_deleted,
+        "postgres_entries_deleted": postgres_deleted
     }
 
 
@@ -87,18 +85,18 @@ def delete_cache_entry(
     Args:
     - cache_key: The MD5 hash of the cached request
     """
-    # Create organization-scoped cache key to prevent collisions
-    org_scoped_cache_key = f"{organization.id}:{cache_key}"
+    if ":" in cache_key:
+        org_scoped_cache_key = cache_key
+    else:
+        org_scoped_cache_key = f"{organization.id}:{cache_key}"
     
-    # Get cache entry using the scoped key
-    cache_entry = crud.get_from_cache(db, org_scoped_cache_key)
-    
-    # Verify ownership and existence
-    if not cache_entry or cache_entry.organization_id != organization.id:
+    cache_entry = crud.get_from_cache(db, org_scoped_cache_key, organization.id)
+    if not cache_entry:
         raise HTTPException(status_code=404, detail="Cache entry not found")
     
-    # Delete the entry
-    db.delete(cache_entry)
-    db.commit()
+    cache_service.delete_entry(db, organization.id, org_scoped_cache_key)
     
-    return {"message": "Cache entry deleted successfully"}
+    return {
+        "message": "Cache entry deleted successfully",
+        "cache_key": org_scoped_cache_key
+    }

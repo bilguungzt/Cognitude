@@ -22,14 +22,16 @@ class EncryptionService:
     
     def __init__(self):
         self._fernet: Optional[Fernet] = None
-        self._initialize_key()
     
-    def _initialize_key(self):
-        """Initialize encryption key from settings or generate new one."""
+    def _ensure_initialized(self):
+        """Lazily initialize encryption key from settings."""
+        if self._fernet is not None:
+            return
+
         secret_key = settings.SECRET_KEY
         if not secret_key:
-            raise ValueError("SECRET_KEY must be set for encryption")
-        
+            raise RuntimeError("SECRET_KEY must be set for encryption operations")
+
         # Use PBKDF2 to derive a consistent key from the secret
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
@@ -55,8 +57,7 @@ class EncryptionService:
         if not plaintext:
             return ""
         
-        if not self._fernet:
-            raise RuntimeError("Encryption not initialized")
+        self._ensure_initialized()
         
         # Convert to bytes and encrypt
         plaintext_bytes = plaintext.encode('utf-8')
@@ -78,8 +79,7 @@ class EncryptionService:
         if not encrypted:
             return ""
         
-        if not self._fernet:
-            raise RuntimeError("Encryption not initialized")
+        self._ensure_initialized()
         
         try:
             # Convert to bytes and decrypt

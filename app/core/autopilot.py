@@ -4,8 +4,6 @@ Cognitude Autopilot Engine
 This module contains the core logic for intelligently routing LLM requests to
 optimize for cost, latency, and quality.
 """
-import json
-import hashlib
 import logging
 from typing import Dict, List, Tuple, Optional
 from decimal import Decimal
@@ -14,7 +12,7 @@ from sqlalchemy.orm import Session
 from openai import AsyncOpenAI
 
 from .. import schemas, models
-from ..services.redis_cache import RedisCache
+from ..services.cache_service import CacheService
 from ..services.router import ProviderRouter
 from .validator import ResponseValidator
 
@@ -128,9 +126,9 @@ class AutopilotEngine:
     Orchestrates the entire request processing flow, including classification,
     model selection, caching, and logging.
     """
-    def __init__(self, db: Session, redis_client: RedisCache, provider_router: Optional[ProviderRouter] = None):
+    def __init__(self, db: Session, cache_service: CacheService, provider_router: Optional[ProviderRouter] = None):
         self.db = db
-        self.redis_client = redis_client
+        self.cache_service = cache_service
         self.provider_router = provider_router
         self.classifier = TaskClassifier()
         self.selector = ModelSelector()
@@ -176,10 +174,14 @@ class AutopilotEngine:
         )
 
         # 3. Check cache
-        cache_key = self.generate_cache_key(request, selected_model)
-        cached_response = self.redis_client.get(cache_key, getattr(organization, 'id'))
+        cache_hit = self.cache_service.get_response(
+            db=self.db,
+            organization_id=getattr(organization, 'id'),
+            request=request,
+            model_override=selected_model,
+        )
 
-        if cached_response:
+        if cache_hit:
             # Log cache hit and return
             await self.log_autopilot_decision(
                 organization_id=organization.id,
@@ -189,23 +191,24 @@ class AutopilotEngine:
                 task_type=task_type,
                 routing_reason="cache_hit",
                 cost_usd=Decimal(0),
-                estimated_savings_usd=Decimal(cached_response.get('cost_usd', 0)),
+                estimated_savings_usd=Decimal(cache_hit.payload.get('cost_usd', 0)),
                 confidence_score=confidence,
                 is_cached_response=True,
                 prompt_length=len(str(request.messages)),
                 temperature=request.temperature or 1.0,
             )
             return {
-                'response': cached_response['response_data'],
+                'response': cache_hit.payload['response_data'],
                 'autopilot_metadata': {
                     'enabled': True,
                     'selected_model': selected_model,
                     'routing_reason': 'cache_hit',
                     'provider_info': {
-                        'name': cached_response.get('provider', 'unknown'),
+                        'name': cache_hit.payload.get('provider', 'unknown'),
                         'model': selected_model,
                         'cost': 0.0  # Cached responses have zero cost
-                    }
+                    },
+                    'cache_key': cache_hit.cache_key,
                 }
             }
 
@@ -355,17 +358,6 @@ class AutopilotEngine:
                 }
             }
         }
-
-    def generate_cache_key(self, request: schemas.ChatCompletionRequest, selected_model: str) -> str:
-        """
-        Generate cache key based on SELECTED model (not original).
-        """
-        prompt_text = json.dumps([msg.model_dump() for msg in request.messages], sort_keys=True)
-        temperature = request.temperature if request.temperature is not None else 1.0
-        
-        cache_content = f"{selected_model}:{prompt_text}:{temperature}"
-        
-        return hashlib.md5(cache_content.encode()).hexdigest()
 
     async def log_autopilot_decision(self, **kwargs):
         """Log autopilot decision to database."""

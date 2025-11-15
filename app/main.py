@@ -17,8 +17,10 @@ from .services.background_tasks import scheduler
 from .services.tracing import setup_tracing, instrument_app, tracer
 from .limiter import limiter
 from .config import get_settings
+from .core.startup import validate_environment
 
 settings = get_settings()
+validate_environment(settings)
 
 # Only initialize Sentry if DSN is provided and valid
 if settings.SENTRY_DSN and settings.SENTRY_DSN.strip():

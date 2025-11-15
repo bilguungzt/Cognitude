@@ -32,12 +32,14 @@ def get_organizations(db: Session) -> List[models.Organization]:
 def create_organization(
     db: Session, 
     organization: schemas.OrganizationCreate, 
-    api_key_hash: str
+    api_key_hash: str,
+    api_key_digest: str
 ) -> models.Organization:
     """Create a new organization."""
     db_organization = models.Organization(
         name=organization.name,
-        api_key_hash=api_key_hash
+        api_key_hash=api_key_hash,
+        api_key_digest=api_key_digest
     )
     db.add(db_organization)
     db.commit()
@@ -121,14 +123,23 @@ def generate_cache_key(messages: List[Dict[str, Any]], model: str, temperature: 
     return hashlib.md5(cache_string.encode()).hexdigest()
 
 
-def get_from_cache(db: Session, cache_key: str) -> Optional[models.LLMCache]:
+def get_from_cache(
+    db: Session,
+    cache_key: str,
+    organization_id: Optional[int] = None
+) -> Optional[models.LLMCache]:
     """
     Check if response exists in cache and is not expired.
     This is a READ-ONLY operation.
     """
-    cache_entry = db.query(models.LLMCache).filter(
+    query = db.query(models.LLMCache).filter(
         models.LLMCache.cache_key == cache_key
-    ).first()
+    )
+    
+    if organization_id is not None:
+        query = query.filter(models.LLMCache.organization_id == organization_id)
+    
+    cache_entry = query.first()
     
     if not cache_entry:
         return None
@@ -173,6 +184,7 @@ def update_cache_stats(db: Session, cache_key: str):
 
 def store_in_cache(
     db: Session,
+    organization_id: int,
     cache_key: str,
     prompt_hash: str,
     model: str,
@@ -182,6 +194,7 @@ def store_in_cache(
     """Store response in cache."""
     cache_entry = models.LLMCache(
         cache_key=cache_key,
+        organization_id=organization_id,
         prompt_hash=prompt_hash,
         model=model,
         response_json=response_json,
@@ -608,52 +621,3 @@ def create_provider_config(
     db.refresh(db_provider)
     return db_provider
 
-
-def get_provider_configs(
-    db: Session,
-    organization_id: int,
-    enabled_only: bool = False
-) -> List[models.ProviderConfig]:
-    """Get provider configurations for an organization."""
-    query = db.query(models.ProviderConfig).filter(
-        models.ProviderConfig.organization_id == organization_id
-    )
-    if enabled_only:
-        query = query.filter(models.ProviderConfig.enabled == True)
-    return query.all()
-
-
-def update_provider_config(
-    db: Session,
-    config_id: int,
-    updates: Dict[str, Any]
-) -> Optional[models.ProviderConfig]:
-    """Update a provider configuration."""
-    provider = db.query(models.ProviderConfig).filter(
-        models.ProviderConfig.id == config_id
-    ).first()
-    
-    if not provider:
-        return None
-    
-    for key, value in updates.items():
-        if hasattr(provider, key):
-            setattr(provider, key, value)
-    
-    db.commit()
-    db.refresh(provider)
-    return provider
-
-
-def delete_provider_config(db: Session, config_id: int) -> bool:
-    """Delete a provider configuration."""
-    provider = db.query(models.ProviderConfig).filter(
-        models.ProviderConfig.id == config_id
-    ).first()
-    
-    if not provider:
-        return False
-    
-    db.delete(provider)
-    db.commit()
-    return True
