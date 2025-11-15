@@ -7,9 +7,11 @@ from typing import Dict
 # Pricing per 1M tokens (input/output in USD)
 PRICING: Dict[str, Dict[str, Decimal]] = {
     # OpenAI - Latest Models (2025)
+    "gpt-5-nano": {"input": Decimal("0.10"), "output": Decimal("0.40")},
     "gpt-5.1": {"input": Decimal("20.00"), "output": Decimal("80.00")},
     "gpt-5.1-instant": {"input": Decimal("18.00"), "output": Decimal("72.00")},
     "gpt-5.1-thinking": {"input": Decimal("25.00"), "output": Decimal("100.00")},
+    "gpt-5.1-codex": {"input": Decimal("25.00"), "output": Decimal("100.00")},
     "gpt-5": {"input": Decimal("18.00"), "output": Decimal("70.00")},
     "gpt-4.5": {"input": Decimal("12.00"), "output": Decimal("40.00")},
     "gpt-4.1": {"input": Decimal("11.00"), "output": Decimal("35.00")},
@@ -39,6 +41,8 @@ PRICING: Dict[str, Dict[str, Decimal]] = {
     
     # Google Gemini - Latest Models (2025)
     "gemini-2.5-pro": {"input": Decimal("2.50"), "output": Decimal("10.00")},
+    "gemini-2.5-flash": {"input": Decimal("0.15"), "output": Decimal("0.60")},
+    "gemini-2.5-flash-lite": {"input": Decimal("0.05"), "output": Decimal("0.20")},
     "gemini-2.5-pro-deep-think": {"input": Decimal("3.50"), "output": Decimal("14.00")},
     "gemini-2.0-flash-exp": {"input": Decimal("0.00"), "output": Decimal("0.00")},  # Free during preview
     "gemini-1.5-pro": {"input": Decimal("1.25"), "output": Decimal("5.00")},
@@ -48,6 +52,10 @@ PRICING: Dict[str, Dict[str, Decimal]] = {
     
     # Groq - Latest Models (2025)
     "groq-4": {"input": Decimal("2.50"), "output": Decimal("12.00")},
+    "grok-3-mini": {"input": Decimal("0.20"), "output": Decimal("0.80")},
+    "grok-code-fast-1": {"input": Decimal("0.80"), "output": Decimal("3.20")},
+    "grok-4-fast": {"input": Decimal("2.00"), "output": Decimal("8.00")},
+    "grok-4-heavy": {"input": Decimal("2.80"), "output": Decimal("11.00")},
     "fast-1": {"input": Decimal("2.00"), "output": Decimal("10.00")},
     # Llama 4 (2025)
     "llama-4-scout": {"input": Decimal("0.80"), "output": Decimal("1.00")},

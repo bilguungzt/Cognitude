@@ -12,7 +12,7 @@ from ..security import get_organization_from_api_key
 from ..services.usage_analyzer import UsageAnalyzer
 
 
-router = APIRouter(prefix="/analytics", tags=["analytics"])
+router = APIRouter(prefix="/analytics", tags=["Analytics"])
 
 
 @router.get("/usage", response_model=schemas.AnalyticsResponse)

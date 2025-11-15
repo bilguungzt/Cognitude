@@ -13,7 +13,7 @@ from typing import Dict, List, Any
 from datetime import datetime
 
 # Configuration
-BASE_URL = os.getenv("COGNITUDE_BASE_URL", "https://api.driftassure.com")
+BASE_URL = os.getenv("COGNITUDE_BASE_URL", "https://api.cognitude.io")
 API_KEY = os.getenv("COGNITUDE_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 

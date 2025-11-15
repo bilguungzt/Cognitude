@@ -19,6 +19,61 @@ from .limiter import limiter
 from .config import get_settings
 from .core.startup import validate_environment
 
+tags_metadata = [
+    {
+        "name": "Authentication",
+        "description": "Register organizations and manage API keys for tenants.",
+    },
+    {
+        "name": "LLM Proxy",
+        "description": "OpenAI-compatible chat/completions and model listings routed through Cognitude.",
+    },
+    {
+        "name": "Smart Routing",
+        "description": "Automatically select optimal providers/models for cost, latency, or quality.",
+    },
+    {
+        "name": "Providers",
+        "description": "Configure upstream provider credentials, priorities, and status.",
+    },
+    {
+        "name": "Analytics",
+        "description": "Usage, cost, and optimization insights for each organization.",
+    },
+    {
+        "name": "Alerts",
+        "description": "Configure cost thresholds and notification channels (Slack, email, webhooks).",
+    },
+    {
+        "name": "Rate Limits",
+        "description": "Inspect and manage per-tenant rate limit policies and usage.",
+    },
+    {
+        "name": "Cache",
+        "description": "Inspect hit rates, clear cache entries, and manage cached responses.",
+    },
+    {
+        "name": "Monitoring",
+        "description": "Operational health endpoints and Prometheus-compatible metrics.",
+    },
+    {
+        "name": "Business Metrics",
+        "description": "Aggregated KPI dashboards and summaries for executive reporting.",
+    },
+    {
+        "name": "Dashboard",
+        "description": "High-level stats surfaced in the hosted dashboard experience.",
+    },
+    {
+        "name": "Schemas",
+        "description": "Manage JSON schema uploads and inspect validation logs.",
+    },
+    {
+        "name": "Benchmarks",
+        "description": "Public LLM performance benchmarks refreshed on a schedule.",
+    },
+]
+
 settings = get_settings()
 validate_environment(settings)
 
@@ -149,7 +204,8 @@ curl -X POST http://your-server:8000/v1/chat/completions \\
         "name": "MIT",
         "url": "https://opensource.org/licenses/MIT",
     },
-    lifespan=lifespan
+    lifespan=lifespan,
+    openapi_tags=tags_metadata
 )
 
 # Instrument the app with OpenTelemetry
@@ -227,24 +283,24 @@ async def track_metrics(request: Request, call_next):
             raise
 
 # Include routers
-app.include_router(auth.router, prefix="/auth", tags=["auth"])
+app.include_router(auth.router, prefix="/auth")
 # Core functionality
-app.include_router(proxy.router, tags=["proxy"])
-app.include_router(providers.router, tags=["providers"])
+app.include_router(proxy.router)
+app.include_router(providers.router)
 
 # Monitoring & Analytics
-app.include_router(monitoring.router, tags=["monitoring"])
-app.include_router(analytics.router, tags=["analytics"])
+app.include_router(monitoring.router)
+app.include_router(analytics.router)
 
 # Configuration
-app.include_router(rate_limits.router, tags=["rate-limits"])
-app.include_router(alerts.router, tags=["alerts"])
+app.include_router(rate_limits.router)
+app.include_router(alerts.router)
 app.include_router(smart_routing.router)  # Smart routing endpoints
 app.include_router(cache.router)  # Uses /cache prefix from router
-app.include_router(dashboard.router, prefix="/api/v1/dashboard", tags=["dashboard"])
-app.include_router(schemas.router, prefix="/api/schemas", tags=["schemas"])
+app.include_router(dashboard.router, prefix="/api/v1/dashboard")
+app.include_router(schemas.router, prefix="/api/schemas")
 app.include_router(public_benchmarks.router)
-app.include_router(metrics.router, prefix="/metrics", tags=["metrics"])
+app.include_router(metrics.router, prefix="/metrics")
 
 @app.get("/health")
 def health_check():

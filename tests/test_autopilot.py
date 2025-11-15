@@ -58,16 +58,34 @@ def test_task_classifier(prompt, expected_task):
 
 # --- ModelSelector Tests ---
 @pytest.mark.parametrize("task_type, confidence, original_model, expected_model", [
-    ("classification", 0.9, "gpt-4-0125-preview", "gpt-4o-mini"),
-    ("summarization", 0.9, "gpt-4-0125-preview", "gpt-4o"),
-    ("reasoning", 0.9, "gpt-4-0125-preview", "gpt-4"),
-    ("code", 0.9, "gpt-4o-mini", "gpt-4"),
-    ("unknown", 0.4, "gpt-4-0125-preview", "gpt-4"),  # Low confidence fallback
+    ("classification", 0.9, "gpt-4-0125-preview", "gpt-5-nano"),
+    ("summarization", 0.9, "gpt-4-0125-preview", "gpt-5.1-instant"),
+    ("reasoning", 0.9, "gpt-4-0125-preview", "gpt-5.1-codex"),
+    ("code", 0.9, "gpt-4o-mini", "gpt-5.1-codex"),
+    ("unknown", 0.4, "gpt-4-0125-preview", "gpt-5.1-codex"),  # Low confidence fallback
 ])
 def test_model_selector(task_type, confidence, original_model, expected_model):
     selector = ModelSelector()
     selected_model, reason = selector.select_model(task_type, confidence, original_model)
     assert selected_model == expected_model
+
+
+def test_model_selector_google_provider_swaps_between_flash_tiers():
+    selector = ModelSelector()
+    simple_model, _ = selector.select_model(
+        task_type="classification",
+        confidence=0.9,
+        original_model="gemini-flash",
+        provider_name="google"
+    )
+    complex_model, _ = selector.select_model(
+        task_type="reasoning",
+        confidence=0.9,
+        original_model="gemini-flash",
+        provider_name="google"
+    )
+    assert simple_model == "gemini-2.5-flash-lite"
+    assert complex_model == "gemini-2.5-pro"
 
 # --- AutopilotEngine Full Logic Tests ---
 
@@ -79,7 +97,7 @@ async def test_process_request_simple_task_downgrade(mock_process, autopilot_eng
         'response': MagicMock(),
         'autopilot_metadata': {
             'enabled': True,
-            'selected_model': 'gpt-4o-mini',
+            'selected_model': 'gpt-5-nano',
             'routing_reason': 'downgraded_for_simple_task'
         }
     }
@@ -87,7 +105,7 @@ async def test_process_request_simple_task_downgrade(mock_process, autopilot_eng
     result = await autopilot_engine.process_request(request, mock_organization, "fake_api_key")
 
     mock_process.assert_called_once()
-    assert result['autopilot_metadata']['selected_model'] == "gpt-4o-mini"
+    assert result['autopilot_metadata']['selected_model'] == "gpt-5-nano"
 
 
 @pytest.mark.asyncio

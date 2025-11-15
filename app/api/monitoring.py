@@ -9,7 +9,7 @@ from prometheus_client import Counter, Histogram, generate_latest
 from ..database import get_db
 from ..services.redis_cache import redis_cache
 
-router = APIRouter()
+router = APIRouter(tags=["Monitoring"])
 
 # 1. Define Prometheus Metrics
 request_count = Counter('http_requests_total', 'Total HTTP requests', ['method', 'endpoint', 'status'])

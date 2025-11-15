@@ -7,7 +7,7 @@ import requests
 import sys
 
 API_KEY = "8hX-UQX0UOnDXXWTo-fKhQ"
-BASE_URL = "https://api.driftassure.com"
+BASE_URL = "https://api.cognitude.io"
 
 headers = {
     "X-API-Key": API_KEY,

@@ -1,6 +1,7 @@
 import logging
+from datetime import datetime
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, inspect, text, event
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -41,6 +42,22 @@ def _create_engine():
 
 
 engine = _create_engine()
+
+# Provide compatibility helpers when using SQLite for local development/testing.
+if str(engine.url).startswith("sqlite"):
+    @event.listens_for(engine, "connect")
+    def _register_sqlite_functions(dbapi_connection, connection_record):
+        """
+        SQLite does not provide the `now()` SQL function that our models use
+        for server_default timestamps. Register a compatible function so
+        migrations and inserts continue to work when using the lightweight
+        SQLite fallback.
+        """
+        try:
+            dbapi_connection.create_function("now", 0, lambda: datetime.utcnow().isoformat())
+        except Exception:
+            # Best-effort registration; ignore if function already exists or cannot be created.
+            pass
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

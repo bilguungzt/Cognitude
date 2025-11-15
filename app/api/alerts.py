@@ -13,7 +13,7 @@ from ..services.alert_service import NotificationService
 from ..limiter import limiter
 
 
-router = APIRouter(prefix="/alerts", tags=["alerts"])
+router = APIRouter(prefix="/alerts", tags=["Alerts"])
 
 
 # ============================================================================

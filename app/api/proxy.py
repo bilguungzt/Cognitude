@@ -20,7 +20,7 @@ from ..limiter import limiter
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(tags=["LLM Proxy"])
 
 settings = get_settings()
 

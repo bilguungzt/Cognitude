@@ -13,7 +13,7 @@ from app.models import LLMRequest
 from app.services.redis_cache import redis_cache
 from app.security import get_organization_from_api_key
 
-router = APIRouter()
+router = APIRouter(tags=["Benchmarks"])
 
 class BenchmarkMetrics(BaseModel):
     avg_cost: float = Field(..., description="Average cost of requests.")

@@ -11,7 +11,7 @@ from ..services.redis_cache import redis_cache
 from ..services.cache_service import cache_service
 
 
-router = APIRouter(prefix="/cache", tags=["cache"])
+router = APIRouter(prefix="/cache", tags=["Cache"])
 
 
 @router.get("/stats", response_model=schemas.CacheStats)

@@ -11,7 +11,7 @@ from app import models
 from app.security import get_organization_from_api_key
 from app.services.tracing import tracer
 
-router = APIRouter(tags=["metrics"])
+router = APIRouter(tags=["Business Metrics"])
 
 
 @router.get("/summary", response_model=Dict[str, Any])

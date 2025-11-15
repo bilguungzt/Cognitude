@@ -13,7 +13,7 @@ import logging
 import traceback
 
 
-router = APIRouter(prefix="/providers", tags=["providers"])
+router = APIRouter(prefix="/providers", tags=["Providers"])
 
 
 @router.post("/", response_model=schemas.ProviderConfig)

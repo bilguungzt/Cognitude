@@ -19,7 +19,7 @@ from ..services.redis_cache import RedisCache
 from ..services.rate_limiter import RateLimiter
 
 
-router = APIRouter(prefix="/rate-limits", tags=["rate-limits"])
+router = APIRouter(prefix="/rate-limits", tags=["Rate Limits"])
 
 
 # ============================================================================

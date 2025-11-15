@@ -6,7 +6,7 @@ from sqlalchemy import func, case
 from datetime import datetime, timedelta
 from app.security import get_organization_from_api_key
 
-router = APIRouter()
+router = APIRouter(tags=["Dashboard"])
 
 @router.get("/summary", response_model=schemas.DashboardSummaryStats)
 def get_dashboard_summary_statistics(

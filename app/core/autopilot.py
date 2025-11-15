@@ -84,9 +84,32 @@ class ModelSelector:
     """Selects optimal model based on task type and constraints."""
     
     MODEL_TIERS = {
-        'simple': ['gpt-4o-mini'],
-        'medium': ['gpt-4o'],
-        'complex': ['gpt-4']
+        'simple': ['gpt-5-nano'],
+        'medium': ['gpt-5.1-instant'],
+        'complex': ['gpt-5.1-codex']
+    }
+
+    PROVIDER_MODEL_OVERRIDES = {
+        'google': {
+            'simple': ['gemini-2.5-flash-lite'],
+            'medium': ['gemini-2.5-flash'],
+            'complex': ['gemini-2.5-pro']
+        },
+        'openai': {
+            'simple': ['gpt-5-nano', 'gpt-5.1-instant'],
+            'medium': ['gpt-5.1-instant', 'gpt-5'],
+            'complex': ['gpt-5.1-codex']
+        },
+        'anthropic': {
+            'simple': ['claude-haiku-4.5'],
+            'medium': ['claude-sonnet-4.5'],
+            'complex': ['claude-opus-4.1']
+        },
+        'groq': {
+            'simple': ['grok-3-mini'],
+            'medium': ['grok-code-fast-1'],
+            'complex': ['grok-4-fast', 'grok-4-heavy']
+        }
     }
     
     TASK_COMPLEXITY = {
@@ -95,7 +118,14 @@ class ModelSelector:
         'reasoning': 'complex', 'code': 'complex'
     }
 
-    def select_model(self, task_type: str, confidence: float, original_model: str, optimize_for: str = 'cost') -> Tuple[str, str]:
+    def select_model(
+        self,
+        task_type: str,
+        confidence: float,
+        original_model: str,
+        optimize_for: str = 'cost',
+        provider_name: Optional[str] = None
+    ) -> Tuple[str, str]:
         """
         Select optimal model.
         
@@ -109,10 +139,21 @@ class ModelSelector:
             complexity = 'complex'
             reason = f"low_confidence_{confidence:.2f}_upgraded_to_safe_model"
         
-        candidates = self.MODEL_TIERS.get(complexity, ['gpt-4'])
+        candidates = self._get_candidates_for_provider(complexity, provider_name) or self.MODEL_TIERS.get(complexity, ['gpt-4'])
         selected = candidates[0]
 
-        if original_model == 'gpt-4' and selected != 'gpt-4':
+        provider_key = provider_name.lower() if provider_name else None
+
+        lock_to_original = (
+            provider_name
+            and provider_key != "google"
+            and self._model_matches_provider(original_model, provider_name)
+        )
+
+        if lock_to_original:
+            selected = original_model
+            reason = f"user_requested_{original_model}_keeping_original"
+        elif original_model == 'gpt-4' and selected != 'gpt-4':
             if confidence < 0.8:
                 selected = original_model
                 reason = f"user_requested_{original_model}_keeping_original"
@@ -120,6 +161,36 @@ class ModelSelector:
                 reason = f"high_confidence_{confidence:.2f}_safe_to_downgrade"
         
         return (selected, reason)
+
+    def _get_candidates_for_provider(self, complexity: str, provider_name: Optional[str]) -> List[str]:
+        if not provider_name:
+            return []
+        provider_key = provider_name.lower()
+        provider_models = self.PROVIDER_MODEL_OVERRIDES.get(provider_key)
+        if not provider_models:
+            return []
+        return provider_models.get(complexity, [])
+
+    @staticmethod
+    def _model_matches_provider(model: str, provider_name: str) -> bool:
+        if not model or not provider_name:
+            return False
+        provider_key = provider_name.lower()
+        model_provider = ModelSelector._infer_provider_from_model(model)
+        return model_provider == provider_key
+
+    @staticmethod
+    def _infer_provider_from_model(model: str) -> Optional[str]:
+        name = model.lower()
+        if name.startswith(("gpt-", "o1-", "o4-")):
+            return "openai"
+        if name.startswith("claude-"):
+            return "anthropic"
+        if name.startswith("gemini") or "gemini" in name:
+            return "google"
+        if "llama" in name or "groq" in name or "grok" in name or name.startswith("fast-"):
+            return "groq"
+        return None
 
 class AutopilotEngine:
     """
@@ -168,17 +239,23 @@ class AutopilotEngine:
         messages_dict = [{"role": msg.role, "content": msg.content} for msg in request.messages]
         task_type, confidence = self.classifier.classify(messages_dict)
 
+        provider_name = str(provider.provider)
+
         # 2. Select the model
         selected_model, routing_reason = self.selector.select_model(
-            task_type, confidence, request.model
+            task_type,
+            confidence,
+            request.model,
+            provider_name=provider_name
         )
+        final_model = self._align_model_to_provider(selected_model, provider_name)
 
         # 3. Check cache
         cache_hit = self.cache_service.get_response(
             db=self.db,
             organization_id=getattr(organization, 'id'),
             request=request,
-            model_override=selected_model,
+            model_override=final_model,
         )
 
         if cache_hit:
@@ -187,7 +264,7 @@ class AutopilotEngine:
                 organization_id=organization.id,
                 llm_request_id=None, # Will be updated later
                 original_model=request.model,
-                selected_model=selected_model,
+                selected_model=final_model,
                 task_type=task_type,
                 routing_reason="cache_hit",
                 cost_usd=Decimal(0),
@@ -201,11 +278,11 @@ class AutopilotEngine:
                 'response': cache_hit.payload['response_data'],
                 'autopilot_metadata': {
                     'enabled': True,
-                    'selected_model': selected_model,
+                    'selected_model': final_model,
                     'routing_reason': 'cache_hit',
                     'provider_info': {
                         'name': cache_hit.payload.get('provider', 'unknown'),
-                        'model': selected_model,
+                        'model': final_model,
                         'cost': 0.0  # Cached responses have zero cost
                     },
                     'cache_key': cache_hit.cache_key,
@@ -214,19 +291,7 @@ class AutopilotEngine:
 
         # 4. Call provider
         api_key = provider.get_api_key()
-        provider_name = str(provider.provider)
-        
-        # Ensure model is compatible with provider
-        # If using Google provider, make sure the model name is appropriate for Google
-        final_model = selected_model
-        if provider_name == "google":
-            # For Google provider, ensure we're using a Google-compatible model
-            if selected_model.startswith("gpt-") or selected_model.startswith("claude-"):
-                # Fallback to Google's default model if an incompatible model was selected
-                final_model = "gemini-flash"  # Use the alias that maps to the correct model
-            else:
-                final_model = selected_model
-        
+
         # Create a temporary router for the call
         temp_router = ProviderRouter(self.db, getattr(organization, 'id'))
         
@@ -270,7 +335,7 @@ class AutopilotEngine:
             organization_id=organization.id,
             llm_request_id=None, # Will be updated later
             original_model=request.model,
-            selected_model=selected_model,
+            selected_model=final_model,
             task_type=task_type,
             routing_reason=routing_reason,
             cost_usd=Decimal(0), # Will be updated later
@@ -285,19 +350,12 @@ class AutopilotEngine:
         # 6. Validate and Fix Response
         async def execute_llm_call(modified_request: schemas.ChatCompletionRequest):
             # Ensure model is compatible with provider for validation calls
-            final_model = modified_request.model
-            if provider_name == "google":
-                # For Google provider, ensure we're using a Google-compatible model
-                if modified_request.model.startswith("gpt-") or modified_request.model.startswith("claude-"):
-                    # Fallback to Google's default model if an incompatible model was selected
-                    final_model = "gemini-flash"  # Use the alias that maps to the correct model
-                else:
-                    final_model = modified_request.model
+            validation_model = self._align_model_to_provider(modified_request.model, provider_name)
             
             if provider_name == "openai":
                 return await temp_router.call_openai(
                     api_key=api_key,
-                    model=final_model,
+                    model=validation_model,
                     messages=[{"role": m.role, "content": m.content} for m in modified_request.messages],
                     temperature=modified_request.temperature,
                     max_tokens=modified_request.max_tokens
@@ -305,7 +363,7 @@ class AutopilotEngine:
             elif provider_name == "google":
                 return await temp_router.call_google(
                     api_key=api_key,
-                    model=final_model,
+                    model=validation_model,
                     messages=[{"role": m.role, "content": m.content} for m in modified_request.messages],
                     temperature=modified_request.temperature,
                     max_tokens=modified_request.max_tokens
@@ -313,7 +371,7 @@ class AutopilotEngine:
             elif provider_name == "anthropic":
                 return await temp_router.call_anthropic(
                     api_key=api_key,
-                    model=final_model,
+                    model=validation_model,
                     messages=[{"role": m.role, "content": m.content} for m in modified_request.messages],
                     temperature=modified_request.temperature,
                     max_tokens=modified_request.max_tokens
@@ -321,7 +379,7 @@ class AutopilotEngine:
             elif provider_name == "groq":
                 return await temp_router.call_groq(
                     api_key=api_key,
-                    model=final_model,
+                    model=validation_model,
                     messages=[{"role": m.role, "content": m.content} for m in modified_request.messages],
                     temperature=modified_request.temperature,
                     max_tokens=modified_request.max_tokens
@@ -340,7 +398,7 @@ class AutopilotEngine:
         from ..services.pricing import calculate_cost
         usage = final_response.get('usage', {})
         cost = calculate_cost(
-            model=selected_model,
+            model=final_model,
             prompt_tokens=usage.get('prompt_tokens', 0),
             completion_tokens=usage.get('completion_tokens', 0)
         )
@@ -349,11 +407,11 @@ class AutopilotEngine:
             'response': final_response,
             'autopilot_metadata': {
                 'enabled': True,
-                'selected_model': selected_model,
+                'selected_model': final_model,
                 'routing_reason': routing_reason,
                 'provider_info': {
                     'name': provider_name,
-                    'model': selected_model,
+                    'model': final_model,
                     'cost': float(cost)
                 }
             }
@@ -367,6 +425,17 @@ class AutopilotEngine:
         self.db.refresh(log_entry)
         return log_entry
 
+    @staticmethod
+    def _align_model_to_provider(model: str, provider_name: Optional[str]) -> str:
+        if not model or not provider_name:
+            return model
+        provider_key = provider_name.lower()
+        model_name = model.lower()
+        if provider_key == "google" and (model_name.startswith("gpt-") or model_name.startswith("claude-")):
+            # Use the public alias that maps to Gemini 2.5 flash-lite internally
+            return "gemini-flash"
+        return model
+
     async def _fallback_direct_call(self, request: schemas.ChatCompletionRequest, provider: models.ProviderConfig) -> dict:
         """Direct provider call without autopilot (emergency fallback)."""
         from ..services.pricing import calculate_cost
@@ -375,14 +444,7 @@ class AutopilotEngine:
         provider_name = str(provider.provider)
         
         # Ensure model is compatible with provider for fallback
-        final_model = request.model
-        if provider_name == "google":
-            # For Google provider, ensure we're using a Google-compatible model
-            if request.model.startswith("gpt-") or request.model.startswith("claude-"):
-                # Fallback to Google's default model if an incompatible model was selected
-                final_model = "gemini-flash"  # Use the alias that maps to the correct model
-            else:
-                final_model = request.model
+        final_model = self._align_model_to_provider(request.model, provider_name)
         
         temp_router = ProviderRouter(self.db, getattr(provider, 'organization_id', 0))
         

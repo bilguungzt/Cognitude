@@ -13,7 +13,7 @@ from ..services.smart_router import SmartRouter
 from ..services.router import ProviderRouter
 
 
-router = APIRouter(tags=["smart-routing"])
+router = APIRouter(tags=["Smart Routing"])
 
 
 class SmartCompletionRequest(BaseModel):

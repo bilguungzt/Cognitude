@@ -10,7 +10,7 @@ from .. import crud, schemas, security
 from ..security import get_db
 from ..core.validation import validate_organization_name, ValidationError
 
-router = APIRouter()
+router = APIRouter(tags=["Authentication"])
 logger = logging.getLogger(__name__)
 
 
