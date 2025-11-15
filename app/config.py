@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     MAX_TOTAL_MESSAGE_SIZE_KB: int = 100
     
     # Alert settings
-    ALERT_DASHBOARD_URL: str = "http://your-server:8000"
+    ALERT_DASHBOARD_URL: str = "https://app.cognitude.io"
     ALERT_ANALYTICS_PATH: str = "/analytics/usage"
     ALERT_RECOMMENDATIONS_PATH: str = "/analytics/recommendations"
     

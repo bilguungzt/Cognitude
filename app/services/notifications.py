@@ -101,7 +101,7 @@ class NotificationService:
                     </ul>
                 </p>
                 <p>
-                    <a href="https://cognitude-frontend-pvoqoo3nx-bilguungzts-projects.vercel.app/models/{model.id}" 
+                    <a href="https://app.cognitude.io/models/{model.id}" 
                        style="background-color: #1976d2; color: white; padding: 10px 20px; 
                               text-decoration: none; border-radius: 5px;">
                         View Dashboard
@@ -189,7 +189,7 @@ class NotificationService:
                                         "type": "plain_text",
                                         "text": "View Dashboard"
                                     },
-                                    "url": f"https://cognitude-frontend-pvoqoo3nx-bilguungzts-projects.vercel.app/models/{model.id}",
+                                    "url": f"https://app.cognitude.io/models/{model.id}",
                                     "style": "primary"
                                 }
                             ]

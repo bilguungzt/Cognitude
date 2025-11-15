@@ -164,7 +164,12 @@ async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
 # Configure CORS for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow frontend origin
+    allow_origins=[
+        "https://app.cognitude.io",
+        "https://www.cognitude.io",
+        "http://localhost:5173",  # Local development
+        "http://localhost:3000",  # Local development alternative
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -286,8 +286,8 @@ class NotificationService:
                             <strong>Recommendations:</strong>
                         </p>
                         <ul>
-                            <li>Review your usage at <a href="http://your-server:8000/analytics/usage">Analytics Dashboard</a></li>
-                            <li>Check optimization recommendations at <a href="http://your-server:8000/analytics/recommendations">Recommendations</a></li>
+                            <li>Review your usage at <a href="https://app.cognitude.io/analytics/usage">Analytics Dashboard</a></li>
+                            <li>Check optimization recommendations at <a href="https://app.cognitude.io/analytics/recommendations">Recommendations</a></li>
                             <li>Consider enabling smart routing for automatic cost optimization</li>
                         </ul>
                         
@@ -434,7 +434,7 @@ class NotificationService:
                         </div>
                         
                         <p style="margin-top: 20px;">
-                            <a href="http://your-server:8000/analytics/usage" style="display: inline-block; padding: 10px 20px; background-color: #2e7d32; color: white; text-decoration: none; border-radius: 4px;">
+                            <a href="https://app.cognitude.io/analytics/usage" style="display: inline-block; padding: 10px 20px; background-color: #2e7d32; color: white; text-decoration: none; border-radius: 4px;">
                                 View Detailed Analytics
                             </a>
                         </p>
