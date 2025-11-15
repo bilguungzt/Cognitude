@@ -6,14 +6,30 @@ from typing import Dict
 
 # Pricing per 1M tokens (input/output in USD)
 PRICING: Dict[str, Dict[str, Decimal]] = {
-    # OpenAI
-    "gpt-4": {"input": Decimal("30.00"), "output": Decimal("60.00")},
-    "gpt-4o": {"input": Decimal("12.00"), "output": Decimal("35.00")},
-    "gpt-4o-mini": {"input": Decimal("1.00"), "output": Decimal("2.50")},
-    "gpt-4-0125-preview": {"input": Decimal("10.00"), "output": Decimal("30.00")},
+    # OpenAI - Latest Models (2025)
+    "gpt-5.1": {"input": Decimal("20.00"), "output": Decimal("80.00")},
+    "gpt-5.1-instant": {"input": Decimal("18.00"), "output": Decimal("72.00")},
+    "gpt-5.1-thinking": {"input": Decimal("25.00"), "output": Decimal("100.00")},
+    "gpt-5": {"input": Decimal("18.00"), "output": Decimal("70.00")},
+    "gpt-4.5": {"input": Decimal("12.00"), "output": Decimal("40.00")},
+    "gpt-4.1": {"input": Decimal("11.00"), "output": Decimal("35.00")},
+    "o4-mini": {"input": Decimal("4.00"), "output": Decimal("16.00")},
+    "o1-preview": {"input": Decimal("15.00"), "output": Decimal("60.00")},
+    "o1-mini": {"input": Decimal("3.00"), "output": Decimal("12.00")},
+    "gpt-4-turbo": {"input": Decimal("10.00"), "output": Decimal("30.00")},
     "gpt-4-turbo-preview": {"input": Decimal("10.00"), "output": Decimal("30.00")},
+    "gpt-4o": {"input": Decimal("2.50"), "output": Decimal("10.00")},
+    "gpt-4o-mini": {"input": Decimal("0.15"), "output": Decimal("0.60")},
+    "gpt-4": {"input": Decimal("30.00"), "output": Decimal("60.00")},
+    "gpt-4-0125-preview": {"input": Decimal("10.00"), "output": Decimal("30.00")},
     
-    # Anthropic Claude
+    # Anthropic Claude - Latest Models (2025)
+    "claude-sonnet-4.5": {"input": Decimal("3.00"), "output": Decimal("15.00")},
+    "claude-haiku-4.5": {"input": Decimal("1.00"), "output": Decimal("5.00")},
+    "claude-opus-4.1": {"input": Decimal("15.00"), "output": Decimal("75.00")},
+    # Existing Anthropic Models
+    "claude-3-5-sonnet-20241022": {"input": Decimal("3.00"), "output": Decimal("15.00")},
+    "claude-3-5-sonnet-20240620": {"input": Decimal("3.00"), "output": Decimal("15.00")},
     "claude-3-opus-20240229": {"input": Decimal("15.00"), "output": Decimal("75.00")},
     "claude-3-sonnet-20240229": {"input": Decimal("3.00"), "output": Decimal("15.00")},
     "claude-3-haiku-20240307": {"input": Decimal("0.25"), "output": Decimal("1.25")},
@@ -21,23 +37,28 @@ PRICING: Dict[str, Dict[str, Decimal]] = {
     "claude-3-sonnet": {"input": Decimal("3.00"), "output": Decimal("15.00")},
     "claude-3-haiku": {"input": Decimal("0.25"), "output": Decimal("1.25")},
     
-    # Hugging Face / community models (Llama 3 family examples)
-    "hf/llama-3-70b": {"input": Decimal("0.70"), "output": Decimal("0.80")},
-    "hf/llama-3-13b": {"input": Decimal("0.10"), "output": Decimal("0.20")},
-    
-    # Groq
-    "llama3-70b-8192": {"input": Decimal("0.70"), "output": Decimal("0.80")},
-    "llama3-8b-8192": {"input": Decimal("0.05"), "output": Decimal("0.10")},
-    "mixtral-8x7b-32768": {"input": Decimal("0.27"), "output": Decimal("0.27")},
-    "gemma-7b-it": {"input": Decimal("0.07"), "output": Decimal("0.07")},
-    
-    # Google Gemini
+    # Google Gemini - Latest Models (2025)
+    "gemini-2.5-pro": {"input": Decimal("2.50"), "output": Decimal("10.00")},
+    "gemini-2.5-pro-deep-think": {"input": Decimal("3.50"), "output": Decimal("14.00")},
     "gemini-2.0-flash-exp": {"input": Decimal("0.00"), "output": Decimal("0.00")},  # Free during preview
-    "gemini-2.5-flash-lite": {"input": Decimal("0.00"), "output": Decimal("0.00")},  # Free during preview
+    "gemini-1.5-pro": {"input": Decimal("1.25"), "output": Decimal("5.00")},
+    "gemini-1.5-flash": {"input": Decimal("0.075"), "output": Decimal("0.30")},
     "gemini-pro": {"input": Decimal("0.50"), "output": Decimal("1.50")},
     "gemini-flash": {"input": Decimal("0.075"), "output": Decimal("0.30")},
-    "gemini-1.5-pro": {"input": Decimal("3.50"), "output": Decimal("10.50")},
-    "gemini-1.5-flash": {"input": Decimal("0.075"), "output": Decimal("0.30")},
+    
+    # Groq - Latest Models (2025)
+    "groq-4": {"input": Decimal("2.50"), "output": Decimal("12.00")},
+    "fast-1": {"input": Decimal("2.00"), "output": Decimal("10.00")},
+    # Llama 4 (2025)
+    "llama-4-scout": {"input": Decimal("0.80"), "output": Decimal("1.00")},
+    "llama-4-maverick": {"input": Decimal("0.90"), "output": Decimal("1.20")},
+    # Existing Groq Models
+    "llama-3.3-70b-versatile": {"input": Decimal("0.59"), "output": Decimal("0.79")},
+    "llama-3.1-70b-versatile": {"input": Decimal("0.59"), "output": Decimal("0.79")},
+    "llama3-70b-8192": {"input": Decimal("0.70"), "output": Decimal("0.80")},
+    "llama3-8b-8192": {"input": Decimal("0.05"), "output": Decimal("0.10")},
+    "mixtral-8x7b-32768": {"input": Decimal("0.24"), "output": Decimal("0.24")},
+    "gemma-7b-it": {"input": Decimal("0.07"), "output": Decimal("0.07")},
 }
 
 # Default pricing for unknown models

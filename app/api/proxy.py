@@ -249,20 +249,59 @@ async def list_models(
         # Add models based on provider type
         if str(provider.provider) == "openai":
             models_list.extend([
+                # Latest Models (2025)
+                {"id": "gpt-5.1", "object": "model", "owned_by": "openai"},
+                {"id": "gpt-5.1-instant", "object": "model", "owned_by": "openai"},
+                {"id": "gpt-5.1-thinking", "object": "model", "owned_by": "openai"},
+                {"id": "gpt-5", "object": "model", "owned_by": "openai"},
+                {"id": "gpt-4.5", "object": "model", "owned_by": "openai"},
+                {"id": "gpt-4.1", "object": "model", "owned_by": "openai"},
+                {"id": "o4-mini", "object": "model", "owned_by": "openai"},
+                # Existing Models
+                {"id": "o1-preview", "object": "model", "owned_by": "openai"},
+                {"id": "o1-mini", "object": "model", "owned_by": "openai"},
+                {"id": "gpt-4-turbo", "object": "model", "owned_by": "openai"},
                 {"id": "gpt-4o", "object": "model", "owned_by": "openai"},
                 {"id": "gpt-4o-mini", "object": "model", "owned_by": "openai"},
-                {"id": "gpt-4-turbo", "object": "model", "owned_by": "openai"},
+                {"id": "gpt-4", "object": "model", "owned_by": "openai"},
             ])
         elif str(provider.provider) == "anthropic":
             models_list.extend([
+                # Latest Models (2025)
+                {"id": "claude-sonnet-4.5", "object": "model", "owned_by": "anthropic"},
+                {"id": "claude-haiku-4.5", "object": "model", "owned_by": "anthropic"},
+                {"id": "claude-opus-4.1", "object": "model", "owned_by": "anthropic"},
+                # Existing Models
+                {"id": "claude-3-5-sonnet-20241022", "object": "model", "owned_by": "anthropic"},
+                {"id": "claude-3-5-sonnet-20240620", "object": "model", "owned_by": "anthropic"},
                 {"id": "claude-3-opus-20240229", "object": "model", "owned_by": "anthropic"},
                 {"id": "claude-3-sonnet-20240229", "object": "model", "owned_by": "anthropic"},
                 {"id": "claude-3-haiku-20240307", "object": "model", "owned_by": "anthropic"},
             ])
         elif str(provider.provider) == "google":
             models_list.extend([
+                # Latest Models (2025)
+                {"id": "gemini-2.5-pro", "object": "model", "owned_by": "google"},
+                {"id": "gemini-2.5-pro-deep-think", "object": "model", "owned_by": "google"},
                 {"id": "gemini-2.0-flash-exp", "object": "model", "owned_by": "google"},
-                {"id": "gemini-2.5-flash-lite", "object": "model", "owned_by": "google"},
+                {"id": "gemini-1.5-pro", "object": "model", "owned_by": "google"},
+                {"id": "gemini-1.5-flash", "object": "model", "owned_by": "google"},
+                {"id": "gemini-pro", "object": "model", "owned_by": "google"},
+                {"id": "gemini-flash", "object": "model", "owned_by": "google"},
+            ])
+        elif str(provider.provider) == "groq":
+            models_list.extend([
+                # Latest Models (2025)
+                {"id": "groq-4", "object": "model", "owned_by": "groq"},
+                {"id": "fast-1", "object": "model", "owned_by": "groq"},
+                # Llama 4 (2025)
+                {"id": "llama-4-scout", "object": "model", "owned_by": "meta"},
+                {"id": "llama-4-maverick", "object": "model", "owned_by": "meta"},
+                # Existing Models
+                {"id": "llama-3.3-70b-versatile", "object": "model", "owned_by": "groq"},
+                {"id": "llama-3.1-70b-versatile", "object": "model", "owned_by": "groq"},
+                {"id": "mixtral-8x7b-32768", "object": "model", "owned_by": "groq"},
+                {"id": "gemma-7b-it", "object": "model", "owned_by": "groq"},
             ])
     
     return {"object": "list", "data": models_list}

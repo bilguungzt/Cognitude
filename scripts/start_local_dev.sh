@@ -5,6 +5,10 @@
 
 echo "Starting Cognitude local development environment..."
 
+# Get script directory
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+cd "$SCRIPT_DIR"
+
 # Function to check if a command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
@@ -87,15 +91,16 @@ fi
 # Function to start backend
 start_backend() {
     echo "Starting backend server..."
-    cd /Users/billy/Documents/Projects/cognitude_mvp
+    cd "$SCRIPT_DIR"
     
     # Activate virtual environment if it exists
     if [ -d "venv" ]; then
         source venv/bin/activate
     else
-        echo "Warning: venv not found. Make sure you have installed Python dependencies."
+        echo "Error: venv not found. Run ./setup_local_env.sh first."
         exit 1
     fi
+    
     # If the venv has python3 but not python, create a symlink for convenience
     if [ -d "venv/bin" ] && [ -x "venv/bin/python3" ] && [ ! -x "venv/bin/python" ]; then
         echo "Creating python -> python3 symlink inside venv/bin"
@@ -126,20 +131,27 @@ start_backend() {
     fi
     
     # Check if Docker services are running
-    if ! docker-compose -f docker-compose.dev.yml ps | grep -q "Up"; then
+    if ! docker compose -f docker-compose.dev.yml ps | grep -q "Up"; then
         echo "Starting Docker services (PostgreSQL and Redis)..."
-        docker-compose -f docker-compose.dev.yml up -d
+        docker compose -f docker-compose.dev.yml up -d
         
         # Wait for services to be ready with better checking
         echo "Waiting for database and Redis to be ready..."
         for i in {1..30}; do
-            if docker-compose -f docker-compose.dev.yml exec db pg_isready >/dev/null 2>&1; then
+            if docker compose -f docker-compose.dev.yml exec -T db pg_isready >/dev/null 2>&1; then
                 echo "Database is ready!"
                 break
             fi
             echo "Waiting for database... ($i/30)"
             sleep 2
         done
+        
+        if ! docker compose -f docker-compose.dev.yml exec -T db pg_isready >/dev/null 2>&1; then
+            echo "❌ Error: Database failed to start after 30 seconds"
+            echo "Logs:"
+            docker compose -f docker-compose.dev.yml logs db
+            exit 1
+        fi
         
         # Additional wait for Redis
         sleep 5
@@ -160,7 +172,19 @@ start_backend() {
 # Function to start frontend
 start_frontend() {
     echo "Starting frontend server..."
-    cd /Users/billy/Documents/Projects/cognitude_mvp/frontend
+    cd "$SCRIPT_DIR/frontend"
+    
+    # Check if node_modules exists
+    if [ ! -d "node_modules" ]; then
+        echo "Error: node_modules not found. Run ./setup_local_env.sh first."
+        exit 1
+    fi
+    
+    # Check for port conflicts on 5173 (Vite default)
+    if ! detect_and_handle_port 5173; then
+        echo "Port conflict not resolved. Aborting frontend start."
+        exit 1
+    fi
     
     # Start the frontend server
     npm run dev
@@ -180,13 +204,14 @@ case "${1:-both}" in
         echo "Starting both frontend and backend..."
         
         # Start backend in background
-        cd /Users/billy/Documents/Projects/cognitude_mvp
+        cd "$SCRIPT_DIR"
         if [ -d "venv" ]; then
             source venv/bin/activate
         else
-            echo "Error: venv not found. Run setup_local_env.sh first."
+            echo "Error: venv not found. Run ./setup_local_env.sh first."
             exit 1
         fi
+        
         # If the venv has python3 but not python, create a symlink for convenience
         if [ -d "venv/bin" ] && [ -x "venv/bin/python3" ] && [ ! -x "venv/bin/python" ]; then
             echo "Creating python -> python3 symlink inside venv/bin"
@@ -216,20 +241,28 @@ case "${1:-both}" in
         fi
         
         # Check if Docker services are running
-        if ! docker-compose -f docker-compose.dev.yml ps | grep -q "Up"; then
+        if ! docker compose -f docker-compose.dev.yml ps | grep -q "Up"; then
             echo "Starting Docker services (PostgreSQL and Redis)..."
-            docker-compose -f docker-compose.dev.yml up -d
+            docker compose -f docker-compose.dev.yml up -d
             
             # Wait for services to be ready with better checking
             echo "Waiting for database and Redis to be ready..."
             for i in {1..30}; do
-                if docker-compose -f docker-compose.dev.yml exec db pg_isready >/dev/null 2>&1; then
+                if docker compose -f docker-compose.dev.yml exec -T db pg_isready >/dev/null 2>&1; then
                     echo "Database is ready!"
                     break
                 fi
                 echo "Waiting for database... ($i/30)"
                 sleep 2
             done
+            
+            if ! docker compose -f docker-compose.dev.yml exec -T db pg_isready >/dev/null 2>&1; then
+                echo "❌ Error: Database failed to start after 30 seconds"
+                echo "Logs:"
+                docker compose -f docker-compose.dev.yml logs db
+                docker compose -f docker-compose.dev.yml down
+                exit 1
+            fi
             
             # Additional wait for Redis
             sleep 5
@@ -240,38 +273,47 @@ case "${1:-both}" in
         echo "Starting backend server..."
         # Create log directory if it doesn't exist
         mkdir -p /tmp
-    # Check for port conflicts on 8000 and handle according to START_LOCAL_DEV_AUTO_KILL or prompt
-    if ! detect_and_handle_port 8000; then
-        echo "Port conflict not resolved. Aborting backend start."
-        docker-compose -f docker-compose.dev.yml down
-        exit 1
-    fi
+        
+        # Check for port conflicts on 8000 and handle according to START_LOCAL_DEV_AUTO_KILL or prompt
+        if ! detect_and_handle_port 8000; then
+            echo "Port conflict not resolved. Aborting backend start."
+            docker compose -f docker-compose.dev.yml down
+            exit 1
+        fi
 
-    # Start uvicorn using the venv/python so correct environment is used
-    $PYTHON -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 > /tmp/backend.log 2>&1 &
-    BACKEND_PID=$!
+        # Start uvicorn using the venv/python so correct environment is used
+        $PYTHON -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 > /tmp/backend.log 2>&1 &
+        BACKEND_PID=$!
         
         # Give backend a moment to start and check if it's running properly
         sleep 8
         
         # Check if backend started successfully by checking if the process is still alive
         if ! kill -0 $BACKEND_PID 2>/dev/null; then
-            echo "Error: Backend failed to start. Check /tmp/backend.log for details."
+            echo "❌ Error: Backend failed to start. Check /tmp/backend.log for details."
             # Show the last few lines of the log for debugging
             if [ -f "/tmp/backend.log" ]; then
                 echo "Last 20 lines of backend log:"
                 tail -n 20 /tmp/backend.log
             fi
-            docker-compose -f docker-compose.dev.yml down
+            docker compose -f docker-compose.dev.yml down
             exit 1
         fi
         
-        echo "Backend started successfully with PID $BACKEND_PID"
-        echo "Backend logs are available at /tmp/backend.log"
+        echo "✅ Backend started successfully with PID $BACKEND_PID"
+        echo "📄 Backend logs are available at /tmp/backend.log"
         
         # Start frontend
-        cd /Users/billy/Documents/Projects/cognitude_mvp/frontend
+        cd "$SCRIPT_DIR/frontend"
         echo "Starting frontend server..."
+        
+        # Check frontend port
+        if ! detect_and_handle_port 5173; then
+            echo "Port conflict not resolved. Aborting frontend start."
+            kill $BACKEND_PID 2>/dev/null
+            exit 1
+        fi
+        
         npm run dev
         
         # When frontend stops, kill backend too
@@ -280,7 +322,7 @@ case "${1:-both}" in
     *)
         echo "Usage: $0 [both|backend|frontend]"
         echo "  both (default): Start both frontend and backend"
-        echo " backend: Start only backend"
+        echo "  backend: Start only backend"
         echo "  frontend: Start only frontend"
         exit 1
         ;;

@@ -170,9 +170,11 @@ def test_provider_connection(
         # Use modern, commonly-available test models by default
         test_model = "gpt-4o-mini"  # default modern OpenAI-compatible model
         if provider.provider == "anthropic":
-            test_model = "claude-3-opus"
+            test_model = "claude-3-haiku-20240307"
         elif provider.provider == "google":
-            test_model = "gemini-2-pro"
+            test_model = "gemini-flash"
+        elif provider.provider == "groq":
+            test_model = "llama-3.1-70b-versatile"
         
         # Try to make a test call
         import asyncio

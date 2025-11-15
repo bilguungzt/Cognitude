@@ -251,6 +251,14 @@ class AutopilotEngine:
                 temperature=request.temperature,
                 max_tokens=request.max_tokens
             )
+        elif provider_name == "groq":
+            response = await temp_router.call_groq(
+                api_key=api_key,
+                model=final_model,
+                messages=messages_dict,
+                temperature=request.temperature,
+                max_tokens=request.max_tokens
+            )
         else:
             raise Exception(f"Unsupported provider: {provider_name}")
 
@@ -301,6 +309,14 @@ class AutopilotEngine:
                 )
             elif provider_name == "anthropic":
                 return await temp_router.call_anthropic(
+                    api_key=api_key,
+                    model=final_model,
+                    messages=[{"role": m.role, "content": m.content} for m in modified_request.messages],
+                    temperature=modified_request.temperature,
+                    max_tokens=modified_request.max_tokens
+                )
+            elif provider_name == "groq":
+                return await temp_router.call_groq(
                     api_key=api_key,
                     model=final_model,
                     messages=[{"role": m.role, "content": m.content} for m in modified_request.messages],
@@ -486,6 +502,14 @@ class AutopilotEngine:
             )
         elif provider_name == "anthropic":
             response = await temp_router.call_anthropic(
+                api_key=api_key,
+                model=final_model,
+                messages=[msg.model_dump() for msg in request.messages],
+                temperature=request.temperature,
+                max_tokens=request.max_tokens
+            )
+        elif provider_name == "groq":
+            response = await temp_router.call_groq(
                 api_key=api_key,
                 model=final_model,
                 messages=[msg.model_dump() for msg in request.messages],

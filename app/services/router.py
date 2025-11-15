@@ -39,14 +39,14 @@ class ProviderRouter:
             return None
         
         provider_name = None
-        if model.startswith("gpt-"):
+        if model.startswith("gpt-") or model.startswith("o1-") or model.startswith("o4-"):
             provider_name = "openai"
         elif model.startswith("claude-"):
             provider_name = "anthropic"
-        elif "llama" in model.lower() or "mixtral" in model.lower() or "gemma" in model.lower():
-            provider_name = "groq"
-        elif "gemini" in model.lower():
+        elif model.startswith("gemini-") or "gemini" in model.lower():
             provider_name = "google"
+        elif "llama" in model.lower() or "mixtral" in model.lower() or "gemma" in model.lower() or "groq" in model.lower() or model.startswith("fast-"):
+            provider_name = "groq"
         
         if provider_name:
             matching_providers = [p for p in providers if str(p.provider) == provider_name]
@@ -263,6 +263,53 @@ class ProviderRouter:
                 raise Exception(f"Google Gemini authentication error: {error_msg}. Please verify your API key is correct and has not been revoked.")
             else:
                 raise Exception(f"Google Gemini API error: {error_msg}")
+    
+    async def call_groq(
+        self,
+        api_key: str,
+        model: str,
+        messages: List[Dict[str, str]],
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Call Groq API (OpenAI-compatible)."""
+        try:
+            from openai import OpenAI
+            
+            # Groq uses OpenAI-compatible API
+            client = OpenAI(
+                api_key=api_key,
+                base_url="https://api.groq.com/openai/v1"
+            )
+            
+            completion = client.chat.completions.create(
+                model=model,
+                messages=messages,  # type: ignore
+                **kwargs
+            )
+            
+            return {
+                "id": completion.id,
+                "model": completion.model,
+                "created": completion.created,
+                "usage": {
+                    "prompt_tokens": completion.usage.prompt_tokens,
+                    "completion_tokens": completion.usage.completion_tokens,
+                    "total_tokens": completion.usage.total_tokens,
+                },
+                "choices": [
+                    {
+                        "index": choice.index,
+                        "message": {
+                            "role": choice.message.role,
+                            "content": choice.message.content,
+                        },
+                        "finish_reason": choice.finish_reason,
+                    }
+                    for choice in completion.choices
+                ],
+            }
+        except Exception as e:
+            raise Exception(f"Groq API error: {str(e)}")
 
     async def call_provider(
         self,
@@ -281,6 +328,8 @@ class ProviderRouter:
             return await self.call_anthropic(api_key, model, messages, **kwargs)
         elif provider_name == "google":
             return await self.call_google(api_key, model, messages, **kwargs)
+        elif provider_name == "groq":
+            return await self.call_groq(api_key, model, messages, **kwargs)
         else:
             raise Exception(f"Provider {provider_name} not yet implemented")
     

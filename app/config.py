@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     ALERT_RECOMMENDATIONS_PATH: str = "/analytics/recommendations"
     
     # Allowed providers
-    ALLOWED_PROVIDERS: List[str] = ["openai", "anthropic", "cohere", "google", "azure", "huggingface"]
+    ALLOWED_PROVIDERS: List[str] = ["openai", "anthropic", "google", "groq", "azure"]
     
     # Model characteristics (can be overridden via environment)
     MODEL_COST_MULTIPLIER: float = 1.0
