@@ -58,11 +58,11 @@ echo "📦 Step 1: Building and deploying updated container..."
 echo ""
 
 # Check if deployment script exists
-if [ ! -f "./deploy_with_docker_fix.sh" ]; then
+if [ ! -f "./scripts/deploy_with_docker_fix.sh" ]; then
     echo "⚠️  deploy_with_docker_fix.sh not found, using deploy_cognitude.sh instead"
-    DEPLOY_SCRIPT="./deploy_cognitude.sh"
+    DEPLOY_SCRIPT="./scripts/deploy_cognitude.sh"
 else
-    DEPLOY_SCRIPT="./deploy_with_docker_fix.sh"
+    DEPLOY_SCRIPT="./scripts/deploy_with_docker_fix.sh"
 fi
 
 # Build and deploy

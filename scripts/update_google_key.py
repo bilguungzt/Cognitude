@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 import sys
 sys.path.insert(0, '/code')
 
@@ -9,7 +10,7 @@ db = next(get_db())
 provider = db.query(models.ProviderConfig).filter(models.ProviderConfig.provider == 'google').first()
 print(f'Found provider: {provider}')
 if provider:
-    provider.api_key_encrypted = 'AIzaSyAwCM5JJ9ZgIDqfcFzILwJX8dUm8CIWQH0'
+    provider.api_key_encrypted = os.environ.get('GOOGLE_API_KEY', '')
     db.commit()
     print('Updated Google API key')
 else:
