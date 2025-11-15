@@ -19,6 +19,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY ./app /code/app
+COPY ./scripts /code/scripts
+COPY debug_api_errors.py /code/debug_api_errors.py
 
 # Change ownership to non-root user
 RUN chown -R cognitude:cognitude /code

@@ -2,7 +2,7 @@
 set -e
 
 echo "======================================================================"
-echo "🚀 Deploying Cognitude to Production (165.22.158.75)"
+echo "🚀 Deploying Cognitude to Production with Docker Fix (165.22.158.75)"
 echo "======================================================================"
 
 SERVER="root@165.22.158.75"
@@ -133,18 +133,41 @@ echo "✅ Production docker-compose created"
 ENDSSH
 
 echo ""
-echo "🐳 Step 5: Fixing Docker daemon..."
+echo "🔧 Step 5: Fixing Docker daemon issues..."
 sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $SERVER << 'ENDSSH'
 cd /opt/cognitude
 
-# Create and run Docker diagnostic and fix script
-cat > fix_docker.sh << 'DOCKER_SCRIPT'
+echo "🔍 Running Docker diagnostics..."
+# Create diagnostic script
+cat > docker_diagnose.sh << 'DIAG_SCRIPT'
 #!/bin/bash
-set -e
+echo "=== Docker Diagnostic Report ==="
+echo "Docker version:"
+docker --version 2>/dev/null || echo "Docker not found"
+echo ""
+echo "Docker service status:"
+systemctl is-active docker 2>/dev/null || echo "Docker service not running"
+echo ""
+echo "DOCKER_HOST variable:"
+echo "DOCKER_HOST=${DOCKER_HOST:-'(not set)'}"
+echo ""
+echo "Docker socket:"
+ls -la /var/run/docker.sock 2>/dev/null || echo "Socket not found"
+echo ""
+echo "User groups:"
+groups
+echo ""
+echo "Testing Docker connectivity:"
+docker info >/dev/null 2>&1 && echo "✅ Docker is accessible" || echo "❌ Docker is not accessible"
+DIAG_SCRIPT
 
-echo "🔧 Fixing Docker daemon issues..."
+chmod +x docker_diagnose.sh
+./docker_diagnose.sh
 
-# Ensure Docker is running
+echo ""
+echo "🔧 Applying Docker fixes..."
+
+# Fix 1: Ensure Docker service is running
 if ! systemctl is-active --quiet docker; then
     echo "Starting Docker service..."
     sudo systemctl start docker
@@ -152,37 +175,40 @@ if ! systemctl is-active --quiet docker; then
     sleep 5
 fi
 
-# Unset DOCKER_HOST to avoid connection issues
+# Fix 2: Unset DOCKER_HOST
 unset DOCKER_HOST
 
-# Fix Docker socket permissions
+# Fix 3: Fix Docker socket permissions
 if [ -S /var/run/docker.sock ]; then
     sudo chmod 666 /var/run/docker.sock
 fi
 
-# Ensure docker group exists
+# Fix 4: Ensure docker group exists
 if ! getent group docker > /dev/null; then
     sudo groupadd docker
 fi
 
-# Add user to docker group
+# Fix 5: Add user to docker group
 CURRENT_USER=$(whoami)
 if ! groups $CURRENT_USER | grep -q docker; then
     sudo usermod -aG docker $CURRENT_USER
 fi
 
-# Test Docker connectivity
+# Fix 6: Restart Docker to apply changes
+echo "Restarting Docker service..."
+sudo systemctl restart docker
+sleep 5
+
+# Verify Docker is working
+echo ""
+echo "✅ Verifying Docker connectivity..."
 if docker info &> /dev/null; then
-    echo "✅ Docker daemon is working"
+    echo "✅ Docker daemon is now accessible"
 else
-    echo "❌ Docker daemon is not accessible"
+    echo "❌ Docker daemon is still not accessible"
     exit 1
 fi
 
-DOCKER_SCRIPT
-
-chmod +x fix_docker.sh
-./fix_docker.sh
 ENDSSH
 
 echo ""
@@ -213,13 +239,13 @@ echo "✅ Services started!"
 ENDSSH
 
 echo ""
-echo "🔍 Step 6: Running health check..."
+echo "🔍 Step 7: Running health check..."
 sleep 5
 curl -f http://165.22.158.75:8000/health || echo "⚠️  Health check failed, but services may still be starting..."
 
 echo ""
 echo "======================================================================"
-echo "✅ Deployment Complete!"
+echo "✅ Deployment Complete with Docker Fix!"
 echo "======================================================================"
 echo ""
 echo "🌐 API URL: http://165.22.158.75:8000"
@@ -232,7 +258,7 @@ echo "   2. Restart services: ssh $SERVER 'cd /opt/cognitude && docker compose -
 echo "   3. Set up Nginx reverse proxy (optional)"
 echo "   4. Configure SSL with Let's Encrypt (optional)"
 echo ""
-echo "🎉 Cognitude is live!"
+echo "🎉 Cognitude is live with Docker daemon fix!"
 
 # Cleanup
 rm cognitude_deploy.tar.gz

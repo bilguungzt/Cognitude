@@ -1,15 +1,17 @@
 #!/bin/bash
+# Manual deployment script that prompts for password
+# Use this if sshpass is not available
+
 set -e
 
 echo "======================================================================"
-echo "🚀 Deploying Cognitude to Production (165.22.158.75)"
+echo "🚀 Manual Deployment Script for Cognitude"
 echo "======================================================================"
+echo ""
 
 SERVER="root@165.22.158.75"
 APP_DIR="/opt/cognitude"
-SSH_PASS="GAzette4ever"
 
-echo ""
 echo "📦 Step 1: Preparing deployment files..."
 # Create deployment package
 tar -czf cognitude_deploy.tar.gz \
@@ -28,11 +30,12 @@ echo "✅ Deployment package created"
 
 echo ""
 echo "📤 Step 2: Uploading to server..."
-sshpass -p "$SSH_PASS" scp cognitude_deploy.tar.gz $SERVER:/tmp/
+echo "You will be prompted for the server password."
+scp cognitude_deploy.tar.gz $SERVER:/tmp/
 
 echo ""
 echo "🔧 Step 3: Setting up on server..."
-sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $SERVER << 'ENDSSH'
+ssh -o StrictHostKeyChecking=no $SERVER << 'ENDSSH'
 set -e
 
 # Stop existing services if any
@@ -69,7 +72,7 @@ ENDSSH
 
 echo ""
 echo "⚙️  Step 4: Configuring environment..."
-sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $SERVER << ENDSSH
+ssh -o StrictHostKeyChecking=no $SERVER << ENDSSH
 export PROD_DATABASE_URL='$PROD_DATABASE_URL'
 export PROD_REDIS_URL='$PROD_REDIS_URL'
 cd /opt/cognitude
@@ -133,61 +136,8 @@ echo "✅ Production docker-compose created"
 ENDSSH
 
 echo ""
-echo "🐳 Step 5: Fixing Docker daemon..."
-sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $SERVER << 'ENDSSH'
-cd /opt/cognitude
-
-# Create and run Docker diagnostic and fix script
-cat > fix_docker.sh << 'DOCKER_SCRIPT'
-#!/bin/bash
-set -e
-
-echo "🔧 Fixing Docker daemon issues..."
-
-# Ensure Docker is running
-if ! systemctl is-active --quiet docker; then
-    echo "Starting Docker service..."
-    sudo systemctl start docker
-    sudo systemctl enable docker
-    sleep 5
-fi
-
-# Unset DOCKER_HOST to avoid connection issues
-unset DOCKER_HOST
-
-# Fix Docker socket permissions
-if [ -S /var/run/docker.sock ]; then
-    sudo chmod 666 /var/run/docker.sock
-fi
-
-# Ensure docker group exists
-if ! getent group docker > /dev/null; then
-    sudo groupadd docker
-fi
-
-# Add user to docker group
-CURRENT_USER=$(whoami)
-if ! groups $CURRENT_USER | grep -q docker; then
-    sudo usermod -aG docker $CURRENT_USER
-fi
-
-# Test Docker connectivity
-if docker info &> /dev/null; then
-    echo "✅ Docker daemon is working"
-else
-    echo "❌ Docker daemon is not accessible"
-    exit 1
-fi
-
-DOCKER_SCRIPT
-
-chmod +x fix_docker.sh
-./fix_docker.sh
-ENDSSH
-
-echo ""
-echo "🐳 Step 6: Starting services..."
-sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $SERVER << 'ENDSSH'
+echo "🐳 Step 5: Starting services..."
+ssh -o StrictHostKeyChecking=no $SERVER << 'ENDSSH'
 cd /opt/cognitude
 
 # Unset DOCKER_HOST to avoid connection issues
@@ -219,7 +169,7 @@ curl -f http://165.22.158.75:8000/health || echo "⚠️  Health check failed, b
 
 echo ""
 echo "======================================================================"
-echo "✅ Deployment Complete!"
+echo "✅ Manual Deployment Complete!"
 echo "======================================================================"
 echo ""
 echo "🌐 API URL: http://165.22.158.75:8000"

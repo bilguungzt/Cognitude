@@ -321,8 +321,8 @@ def validate_model_name(model: str) -> str:
     
     sanitized = sanitize_string(model, max_length=100)
     
-    # Model names typically contain letters, numbers, hyphens, and dots
-    if not re.match(r'^[a-zA-Z0-9-._]+$', sanitized):
+    # Model names typically contain letters, numbers, hyphens, dots, and forward slashes
+    if not re.match(r'^[a-zA-Z0-9-._/]+$', sanitized):
         raise ValidationError("Invalid model name format")
     
     return sanitized

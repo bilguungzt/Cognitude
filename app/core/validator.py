@@ -82,9 +82,18 @@ class ResponseValidator:
 
     def _is_response_empty(self, response: Any) -> bool:
         """Checks if the response content is empty or whitespace."""
-        if not response.choices or not response.choices[0].message or response.choices[0].message.content is None:
-            return True
-        content = response.choices[0].message.content
+        # Handle both object and dictionary formats
+        try:
+            # Try object format first (OpenAI style)
+            if not response.choices or not response.choices[0].message or response.choices[0].message.content is None:
+                return True
+            content = response.choices[0].message.content
+        except AttributeError:
+            # Handle dictionary format (Google style)
+            if not response.get('choices') or not response['choices'][0].get('message') or response['choices'][0]['message'].get('content') is None:
+                return True
+            content = response['choices'][0]['message']['content']
+        
         return not content.strip()
 
     def _is_json_invalid(self, response: Any, expects_json: bool) -> bool:
@@ -92,16 +101,32 @@ class ResponseValidator:
         if not expects_json:
             return False
         try:
-            if not response.choices or not response.choices[0].message or response.choices[0].message.content is None:
-                return True # Consider no content as invalid JSON if JSON was expected
-            json.loads(response.choices[0].message.content)
+            # Handle both object and dictionary formats
+            try:
+                # Try object format first (OpenAI style)
+                if not response.choices or not response.choices[0].message or response.choices[0].message.content is None:
+                    return True # Consider no content as invalid JSON if JSON was expected
+                content = response.choices[0].message.content
+            except AttributeError:
+                # Handle dictionary format (Google style)
+                if not response.get('choices') or not response['choices'][0].get('message') or response['choices'][0]['message'].get('content') is None:
+                    return True # Consider no content as invalid JSON if JSON was expected
+                content = response['choices'][0]['message']['content']
+            
+            json.loads(content)
             return False
         except (json.JSONDecodeError, AttributeError, TypeError):
             return True
 
     def _is_truncated(self, response: Any) -> bool:
         """Checks if the response was likely truncated."""
-        return response.choices and response.choices[0].finish_reason == 'length'
+        # Handle both object and dictionary formats
+        try:
+            # Try object format first (OpenAI style)
+            return response.choices and response.choices[0].finish_reason == 'length'
+        except AttributeError:
+            # Handle dictionary format (Google style)
+            return response.get('choices') and response['choices'][0].get('finish_reason') == 'length'
 
     async def _attempt_fix(
         self,

@@ -1,433 +1,268 @@
 """
-Core LLM proxy endpoint with caching and multi-provider routing.
+Core LLM proxy with caching and multi-provider routing.
 """
 import time
-from typing import Optional
 import json
 import logging
-from decimal import Decimal
-from fastapi import APIRouter, Depends, HTTPException, Response, Header, Request
+from typing import Dict, Any, Optional
+from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from sqlalchemy.orm import Session
 
-from .. import crud, schemas, models
+from .. import crud, models, schemas
 from ..database import get_db
 from ..security import get_organization_from_api_key
 from ..services.router import ProviderRouter
-from ..services.tokens import count_messages_tokens
-from ..services.pricing import calculate_cost
 from ..services.redis_cache import redis_cache
 from ..core.autopilot import AutopilotEngine
-from ..core.schema_enforcer import SchemaEnforcer, validate_user_schema
-from ..core.validation import validate_model_name, ValidationError
+from ..core.schema_enforcer import SchemaEnforcer
+from ..config import get_settings
 from ..limiter import limiter
 
 logger = logging.getLogger(__name__)
 
+router = APIRouter()
 
-router = APIRouter(tags=["proxy"])
+settings = get_settings()
 
 
-@router.post("/v1/chat/completions",
-             response_model=schemas.ChatCompletionResponse,
-             responses={
-                 200: {
-                     "description": "Successful response",
-                     "content": {
-                         "application/json": {
-                             "example": {
-                                 "id": "chatcmpl-abc123",
-                                 "object": "chat.completion",
-                                 "created": 170490240,
-                                 "model": "gpt-4o-mini",
-                                 "choices": [
-                                     {
-                                         "index": 0,
-                                         "message": {
-                                             "role": "assistant",
-                                             "content": "Hello! How can I help you today?"
-                                         },
-                                         "finish_reason": "stop"
-                                     }
-                                 ],
-                                 "usage": {
-                                     "prompt_tokens": 10,
-                                     "completion_tokens": 12,
-                                     "total_tokens": 22
-                                 },
-                                     "x-cognitude": {
-                                     "cached": False,
-                                     "cost": 0.0024,
-                                     "provider": "openai",
-                                     "cache_key": "chat:gpt-4o-mini:hash123"
-                                 }
-                             }
-                         }
-                     }
-                 },
-                 401: {
-                     "description": "Invalid or missing API key",
-                     "content": {
-                         "application/json": {
-                             "example": {
-                                 "error": {
-                                     "message": "Invalid or missing API Key",
-                                     "type": "authentication_error",
-                                     "code": "INVALID_API_KEY"
-                                 }
-                             }
-                         }
-                     }
-                 },
-                 429: {
-                     "description": "Rate limit exceeded",
-                     "content": {
-                         "application/json": {
-                             "example": {
-                                 "error": {
-                                     "message": "Rate limit exceeded",
-                                     "type": "rate_limit_error",
-                                     "code": "RATE_LIMIT_EXCEEDED",
-                                     "retry_after": 60
-                                 }
-                             }
-                         }
-                     }
-                 },
-                 500: {
-                     "description": "Internal server error",
-                     "content": {
-                         "application/json": {
-                             "example": {
-                                 "error": {
-                                     "message": "Internal server error",
-                                     "type": "api_error",
-                                     "code": "INTERNAL_ERROR"
-                                 }
-                             }
-                         }
-                     }
-                 }
-             })
+@router.post("/v1/chat/completions")
 @limiter.limit("100/minute")
-async def chat_completions(
-    request_body: schemas.ChatCompletionRequest,
+async def proxy_chat_completion(
     request: Request,
-    response: Response,
     db: Session = Depends(get_db),
-    organization: schemas.Organization = Depends(get_organization_from_api_key),
+    organization: models.Organization = Depends(get_organization_from_api_key),
     x_cognitude_schema: Optional[str] = Header(None)
 ):
     """
-    OpenAI-compatible chat completions endpoint with caching and multi-provider routing.
-    
-    Features:
-    - Automatic response caching (30-70% cost savings)
-    - Multi-provider routing (OpenAI, Anthropic, Hugging Face, Groq)
-    - Token counting and cost calculation
-    - Request logging and analytics
-    - Fallback to alternative providers on failure
-    - Rate limiting per organization (100 req/min default)
-    
-    Usage:
-    ```python
-    from openai import OpenAI
-    
-    client = OpenAI(
-        api_key="your-cognitude-key",
-        base_url="http://your-server:8000/v1"
-    )
-    
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": "Hello!"}]
-    )
-    ```
-    
-    Rate Limiting:
-    - Default: 100 requests/minute, 3000 requests/hour, 50k requests/day
-    - Configurable via /rate-limits/config endpoint
-    - Returns 429 status when limit exceeded
-    - Rate limit headers included in all responses:
-      - X-RateLimit-Limit: Total requests allowed per minute
-      - X-RateLimit-Remaining: Requests remaining in current minute
-      - X-RateLimit-Reset: Unix timestamp when limit resets
-    ```
+    Main proxy endpoint for chat completions with:
+    - Intelligent provider routing
+    - Response caching
+    - Schema enforcement
+    - Cost tracking
+    - Rate limiting
     """
     start_time = time.time()
     
     try:
-        # Validate request size (only if request object is available)
-        if request:
-            content_length = request.headers.get("content-length")
-            if content_length:
-                try:
-                    content_length_int = int(content_length)
-                    if content_length_int > 10 * 1024 * 1024:  # 10MB limit
-                        raise HTTPException(
-                            status_code=413,
-                            detail="Request size exceeds maximum allowed limit of 10MB"
-                        )
-                except ValueError:
-                    # If content-length header is invalid, continue processing
-                    pass
+        # Parse request body
+        body = await request.json()
+        request_body = schemas.ChatCompletionRequest(**body)
         
-        # Validate model name
-        validated_model = validate_model_name(request_body.model)
-        request_body.model = validated_model
+        # Get the actual integer value of organization.id using a scalar query
+        org_id_result = db.query(models.Organization.id).filter(
+            models.Organization.id == organization.id
+        ).first()
         
-    except ValidationError as e:
-        logger.warning(f"Validation error in chat completions: {e.detail}")
-        raise HTTPException(status_code=400, detail=e.detail)
-    except Exception as e:
-        logger.error(f"Unexpected validation error: {e}")
-        raise HTTPException(status_code=400, detail="Invalid request data")
-    
-    # Get API key for the requested model
-    provider_router = ProviderRouter(db, organization.id)
-    provider = provider_router.select_provider(request_body.model)
-    if not provider:
-        raise HTTPException(status_code=400, detail=f"Provider not configured for model '{request_body.model}'.")
-    
-    api_key = provider.get_api_key() if provider else None
-    if not api_key:
-        raise HTTPException(status_code=400, detail="Provider API key not configured. Please configure your provider credentials.")
-
-    # Instantiate Autopilot Engine
-    autopilot = AutopilotEngine(db, redis_cache, provider_router)
-
-    # Process request through Autopilot
-    org_model = db.query(models.Organization).filter(models.Organization.id == organization.id).first()
-    if not org_model:
-        raise HTTPException(status_code=404, detail="Organization not found.")
-    
-    # Validate organization has rate limit configuration
-    rate_limit_config = db.query(models.RateLimitConfig).filter(
-        models.RateLimitConfig.organization_id == organization.id
-    ).first()
-    
-    if not rate_limit_config:
-        # Create default rate limit config if none exists
-        rate_limit_config = models.RateLimitConfig(
-            organization_id=organization.id,
-            requests_per_minute=100,
-            requests_per_hour=3000,
-            requests_per_day=50000
-        )
-        db.add(rate_limit_config)
-        db.commit()
-
-    # 1. Schema Enforcement Setup
-    schema = None
-    if x_cognitude_schema:
-        try:
-            schema = json.loads(x_cognitude_schema)
-        except json.JSONDecodeError:
-            raise HTTPException(status_code=400, detail="Invalid JSON in x-cognitude-schema header")
+        if org_id_result:
+            org_id = org_id_result[0]
+        else:
+            raise HTTPException(status_code=404, detail="Organization not found")
         
-        try:
-            validate_user_schema(schema)
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=f"Schema validation failed: {e}")
-
-    # The AutopilotEngine will act as the LLM provider for retries
-    schema_enforcer = SchemaEnforcer(db=db, llm_provider=autopilot)
-
-    # 2. Inject schema prompt if schema is provided
-    if schema:
-        request_dict = request_body.model_dump()
-        modified_request_dict = schema_enforcer.enforce_schema(
-            request=request_dict,
-            schema=schema
-        )
-        request_body = schemas.ChatCompletionRequest(**modified_request_dict)
-
-    # 3. Call LLM via Autopilot
-    result = await autopilot.process_request(request_body, org_model, provider)
-    response_data = result['response']
-    autopilot_metadata = result['autopilot_metadata']
-
-    # Log the initial request before validation
-    latency_ms = int((time.time() - start_time) * 1000)
-    usage = response_data.usage
-    
-    # Calculate the cost before logging
-    model_name = autopilot_metadata.get('selected_model', request_body.model)
-    cost = calculate_cost(usage.prompt_tokens, usage.completion_tokens, model_name) or Decimal(0)
-
-    llm_request_log = crud.log_llm_request(
-        db=db,
-        organization_id=organization.id,
-        model=request_body.model,
-        provider=autopilot_metadata.get('selected_model', request_body.model),
-        prompt_tokens=usage.prompt_tokens,
-        completion_tokens=usage.completion_tokens,
-        cost_usd=cost,
-        latency_ms=latency_ms,
-        cache_hit=autopilot_metadata.get('routing_reason') == 'cache_hit',
-        cache_key=None, # Placeholder
-    )
-    db.flush() # Ensure llm_request_log gets an ID
-
-    # 4. Validate and Retry if schema was provided
-    if schema:
-        # Perform schema validation and retries within the proxy endpoint
-        # instead of in the schema enforcer to avoid circular dependency
-        max_retries = 3
-        current_response = response_data.model_dump()
+        # Initialize services
+        provider_router = ProviderRouter(db, org_id)
+        autopilot = AutopilotEngine(db, redis_cache, provider_router)
+        schema_enforcer = SchemaEnforcer(db, llm_provider=provider_router)
         
-        for attempt in range(max_retries):
-            is_valid, error_message = schema_enforcer._validate_json_schema(current_response, schema)
+        # Check for schema enforcement
+        schema = None
+        if x_cognitude_schema:
+            try:
+                schema = json.loads(x_cognitude_schema)
+                # Validate user schema for security/correctness
+                from jsonschema import Draft7Validator
+                Draft7Validator.check_schema(schema)
+            except json.JSONDecodeError:
+                raise HTTPException(status_code=400, detail="Invalid JSON in x-cognitude-schema header")
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Schema validation error: {str(e)}")
+        
+        # Try cache first
+        cache_key = None
+        cached_response = None  # Initialize to avoid unbound variable error
+        if getattr(settings, 'CACHE_ENABLED', False):
+            cache_key = f"llm_cache:{org_id}:{hash(str(request_body.model) + str(request_body.messages))}"
+            cached_response = redis_cache.get(cache_key, org_id)
             
-            if is_valid:
-                response_data = schemas.ChatCompletionResponse(**current_response)
-                autopilot_metadata['x_cognitude_validation'] = {"status": "completed", "attempts": attempt + 1}
-                break
+            if cached_response:
+                response_data = cached_response.get("response_data", {})
+                response_data["x-cognitude"] = {
+                    "cached": True,
+                    "hit": True,
+                    "cost": 0.0,  # Cached responses have zero cost
+                    "provider": response_data.get("model", "unknown"),
+                    "cache_key": cache_key
+                }
+                return response_data
+        
+        # Get provider for the request
+        provider = provider_router.select_provider(request_body.model)
+        if not provider:
+            raise HTTPException(status_code=400, detail=f"No provider configured for model: {request_body.model}")
+        
+        # Route to provider via autopilot
+        result = await autopilot.process_request(
+            request=request_body,
+            organization=organization,
+            provider=provider
+        )
+        
+        response_data = result["response"]
+        autopilot_metadata = result["autopilot_metadata"]
+        
+        # Apply schema enforcement if schema was provided
+        if schema:
+            max_retries = 3
+            current_response = response_data if isinstance(response_data, dict) else response_data.model_dump()
+            
+            for attempt in range(max_retries):
+                is_valid, error_msg = schema_enforcer._validate_json_schema(current_response, schema)
+                
+                if is_valid:
+                    response_data = current_response
+                    autopilot_metadata["schema_validation"] = {"status": "passed", "attempts": attempt + 1}
+                    break
+                else:
+                    # Log validation failure
+                    schema_enforcer._log_validation(
+                        project_id=org_id,
+                        request=request_body.model_dump(),
+                        response=current_response,
+                        is_valid=False,
+                        error=error_msg,
+                        attempt=attempt
+                    )
+                    
+                    # Create retry request
+                    retry_request = request_body.model_copy()
+                    retry_prompt = schema_enforcer._generate_retry_prompt(schema, error_msg)
+                    retry_request.messages.append(
+                        schemas.ChatMessage(role="user", content=retry_prompt)
+                    )
+                    
+                    # Get provider for the retry
+                    retry_provider = provider_router.select_provider(retry_request.model)
+                    if not retry_provider:
+                        raise HTTPException(status_code=400, detail=f"No provider configured for model: {retry_request.model}")
+                    
+                    # Call LLM again via autopilot
+                    retry_result = await autopilot.process_request(
+                        request=retry_request,
+                        organization=organization,
+                        provider=retry_provider
+                    )
+                    current_response = retry_result["response"]
+                    if isinstance(current_response, dict):
+                        current_response = current_response
+                    else:
+                        current_response = current_response.model_dump()
+                    
+                    # On final attempt, use response even if invalid
+                    if attempt == max_retries - 1:
+                        response_data = current_response
+                        autopilot_metadata["schema_validation"] = {
+                            "status": "failed_after_retries",
+                            "attempts": attempt + 1,
+                            "error": error_msg
+                        }
+        else:
+            if isinstance(response_data, dict):
+                response_data = response_data
             else:
-                # Log the validation failure
-                schema_enforcer._log_validation(organization.id, request_body.model_dump(), current_response, False, error_message, attempt)
-                
-                # Create a new request with retry instructions
-                retry_prompt = schema_enforcer._generate_retry_prompt(schema, error_message)
-                new_request = request_body.model_copy()
-                new_request.messages.append(schemas.ChatMessage(role="user", content=retry_prompt))
-                
-                # Call the LLM again via autopilot
-                result = await autopilot.process_request(new_request, org_model, api_key)
-                current_response = result['response'].model_dump()
-                
-                # If this was the last attempt, use the final response even if invalid
-                if attempt == max_retries - 1:
-                    response_data = schemas.ChatCompletionResponse(**current_response)
-                    autopilot_metadata['x_cognitude_validation'] = {"status": "failed", "attempts": attempt + 1, "error": error_message}
+                response_data = response_data.model_dump()
+        
+        # Calculate costs and update response
+        provider_info = autopilot_metadata.get("provider_info", {})
+        cost = provider_info.get("cost", 0.0)
+        
+        # Add cognitude metadata
+        response_data["x-cognitude"] = {
+            "cached": False,
+            "hit": False,
+            "cost": float(cost),
+            "provider": provider_info.get("name", "unknown"),
+            "cache_key": cache_key,
+            "routing_metadata": autopilot_metadata
+        }
+        
+        # Cache the response if caching is enabled
+        if getattr(settings, 'CACHE_ENABLED', False) and cache_key:
+            ttl_hours = getattr(settings, 'CACHE_TTL_HOURS', 24)
+            redis_cache.set(
+                cache_key=cache_key,
+                organization_id=org_id,
+                response_data=response_data,
+                model=request_body.model,
+                provider=provider_info.get("name", "unknown"),
+                prompt_tokens=response_data.get("usage", {}).get("prompt_tokens", 0),
+                completion_tokens=response_data.get("usage", {}).get("completion_tokens", 0),
+                cost_usd=cost,
+                ttl_hours=ttl_hours
+            )
+        
+        # Log the request
+        crud.log_llm_request(
+            db=db,
+            organization_id=org_id,
+            model=request_body.model,
+            provider=provider_info.get("name", "unknown"),
+            prompt_tokens=response_data.get("usage", {}).get("prompt_tokens", 0),
+            completion_tokens=response_data.get("usage", {}).get("completion_tokens", 0),
+            cost_usd=cost,
+            latency_ms=int((time.time() - start_time) * 1000),
+            cache_hit=bool(cached_response)  # Now cached_response is always defined
+        )
+        
+        return response_data
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        # Log the full error with stack trace
+        logger.error(f"Proxy error: {e}", exc_info=True)
+        # Return more detailed error in development, generic in production
+        error_detail = f"Internal proxy error: {str(e)}" if settings.ENVIRONMENT != "production" else "Internal proxy error"
+        raise HTTPException(status_code=500, detail=error_detail)
 
-    # 5. Return final response
-    final_response_dict = response_data.model_dump()
-    final_response_dict["x-cognitude"] = autopilot_metadata
-    
-    return final_response_dict
-@router.get("/v1/models",
-             responses={
-                 200: {
-                     "description": "List of available models",
-                     "content": {
-                         "application/json": {
-                             "example": {
-                                 "object": "list",
-                                 "data": [
-                                     {
-                                         "id": "gpt-4-0125-preview",
-                                         "object": "model",
-                                         "owned_by": "openai"
-                                     },
-                                     {
-                                         "id": "claude-3-opus-20240229",
-                                         "object": "model",
-                                         "owned_by": "anthropic"
-                                     }
-                                 ]
-                             }
-                         }
-                     }
-                 },
-                 401: {
-                     "description": "Invalid or missing API key",
-                     "content": {
-                         "application/json": {
-                             "example": {
-                                 "error": {
-                                     "message": "Invalid or missing API Key",
-                                     "type": "authentication_error",
-                                     "code": "INVALID_API_KEY"
-                                 }
-                             }
-                         }
-                     }
-                 },
-                 500: {
-                     "description": "Internal server error",
-                     "content": {
-                         "application/json": {
-                             "example": {
-                                 "error": {
-                                     "message": "Internal server error",
-                                     "type": "api_error",
-                                     "code": "INTERNAL_ERROR"
-                                 }
-                             }
-                         }
-                     }
-                 }
-             })
+
+@router.get("/v1/models")
 async def list_models(
     db: Session = Depends(get_db),
-    organization: schemas.Organization = Depends(get_organization_from_api_key)
+    organization: models.Organization = Depends(get_organization_from_api_key)
 ):
-
-    """
-    List available models based on configured providers.
-    OpenAI-compatible endpoint.
+    """List available models from configured providers."""
+    # Get the actual integer value of organization.id
+    org_id_result = db.query(models.Organization.id).filter(
+        models.Organization.id == organization.id
+    ).first()
     
-    ## Authentication
-    This endpoint requires API key authentication. You can authenticate using:
-    - `X-API-Key: your-api-key` header
-    - `Authorization: Bearer your-api-key` header (OpenAI-compatible format)
+    if org_id_result:
+        org_id = org_id_result[0]
+    else:
+        raise HTTPException(status_code=404, detail="Organization not found")
     
-    **Example:**
-    ```bash
-    curl https://api.cognitude.io/v1/models \\
-      -H "Authorization: Bearer cog_abc123def456..."
-    ```
-    
-    ## Response
-    Returns a list of available models based on your configured providers.
-    Each model includes:
-    - `id`: Model identifier (e.g., "gpt-4-0125-preview", "claude-3-opus-20240229")
-    - `object`: Always "model"
-    - `owned_by`: Provider name (e.g., "openai", "anthropic")
-    
-    ## Error Responses
-    Common error codes:
-    - `401`: Invalid or missing API key
-    - `403`: Insufficient permissions
-    - `500`: Internal server error
-    """
-    provider_router = ProviderRouter(db, organization.id)
+    provider_router = ProviderRouter(db, org_id)
     providers = provider_router.get_providers(enabled_only=True)
     
-    # Build list of available models based on providers
     models_list = []
-    
-    for provider_config in providers:
-        if str(provider_config.provider) == "openai":
+    for provider in providers:
+        # Add models based on provider type
+        if str(provider.provider) == "openai":
             models_list.extend([
                 {"id": "gpt-4o", "object": "model", "owned_by": "openai"},
                 {"id": "gpt-4o-mini", "object": "model", "owned_by": "openai"},
-                {"id": "gpt-4-0125-preview", "object": "model", "owned_by": "openai"},
-                {"id": "gpt-4-turbo-preview", "object": "model", "owned_by": "openai"},
+                {"id": "gpt-4-turbo", "object": "model", "owned_by": "openai"},
             ])
-        elif str(provider_config.provider) == "anthropic":
+        elif str(provider.provider) == "anthropic":
             models_list.extend([
                 {"id": "claude-3-opus-20240229", "object": "model", "owned_by": "anthropic"},
                 {"id": "claude-3-sonnet-20240229", "object": "model", "owned_by": "anthropic"},
-                {"id": "claude-3-opus", "object": "model", "owned_by": "anthropic"},
+                {"id": "claude-3-haiku-20240307", "object": "model", "owned_by": "anthropic"},
             ])
-        elif str(provider_config.provider) == "google":
+        elif str(provider.provider) == "google":
             models_list.extend([
-                {"id": "gemini-2-pro", "object": "model", "owned_by": "google"},
-                {"id": "gemini-2-flash", "object": "model", "owned_by": "google"},
-            ])
-        elif str(provider_config.provider) == "huggingface":
-            models_list.extend([
-                {"id": "hf/llama-3-70b", "object": "model", "owned_by": "huggingface"},
-                {"id": "hf/llama-3-13b", "object": "model", "owned_by": "huggingface"},
-            ])
-        elif str(provider_config.provider) == "groq":
-            models_list.extend([
-                {"id": "llama3-70b", "object": "model", "owned_by": "groq"},
-                {"id": "mixtral-8x7b", "object": "model", "owned_by": "groq"},
+                {"id": "gemini-2.0-flash-exp", "object": "model", "owned_by": "google"},
+                {"id": "gemini-2.5-flash-lite", "object": "model", "owned_by": "google"},
             ])
     
-    return {
-        "object": "list",
-        "data": models_list
-    }
+    return {"object": "list", "data": models_list}

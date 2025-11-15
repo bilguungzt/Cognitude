@@ -200,7 +200,12 @@ class AutopilotEngine:
                 'autopilot_metadata': {
                     'enabled': True,
                     'selected_model': selected_model,
-                    'routing_reason': 'cache_hit'
+                    'routing_reason': 'cache_hit',
+                    'provider_info': {
+                        'name': cached_response.get('provider', 'unknown'),
+                        'model': selected_model,
+                        'cost': 0.0  # Cached responses have zero cost
+                    }
                 }
             }
 
@@ -208,13 +213,24 @@ class AutopilotEngine:
         api_key = provider.get_api_key()
         provider_name = str(provider.provider)
         
+        # Ensure model is compatible with provider
+        # If using Google provider, make sure the model name is appropriate for Google
+        final_model = selected_model
+        if provider_name == "google":
+            # For Google provider, ensure we're using a Google-compatible model
+            if selected_model.startswith("gpt-") or selected_model.startswith("claude-"):
+                # Fallback to Google's default model if an incompatible model was selected
+                final_model = "gemini-flash"  # Use the alias that maps to the correct model
+            else:
+                final_model = selected_model
+        
         # Create a temporary router for the call
-        temp_router = ProviderRouter(self.db, organization.id)
+        temp_router = ProviderRouter(self.db, getattr(organization, 'id'))
         
         if provider_name == "openai":
             response = await temp_router.call_openai(
                 api_key=api_key,
-                model=selected_model,
+                model=final_model,
                 messages=messages_dict,
                 temperature=request.temperature,
                 max_tokens=request.max_tokens
@@ -222,7 +238,7 @@ class AutopilotEngine:
         elif provider_name == "google":
             response = await temp_router.call_google(
                 api_key=api_key,
-                model=selected_model,
+                model=final_model,
                 messages=messages_dict,
                 temperature=request.temperature,
                 max_tokens=request.max_tokens
@@ -230,7 +246,7 @@ class AutopilotEngine:
         elif provider_name == "anthropic":
             response = await temp_router.call_anthropic(
                 api_key=api_key,
-                model=selected_model,
+                model=final_model,
                 messages=messages_dict,
                 temperature=request.temperature,
                 max_tokens=request.max_tokens
@@ -257,10 +273,20 @@ class AutopilotEngine:
 
         # 6. Validate and Fix Response
         async def execute_llm_call(modified_request: schemas.ChatCompletionRequest):
+            # Ensure model is compatible with provider for validation calls
+            final_model = modified_request.model
+            if provider_name == "google":
+                # For Google provider, ensure we're using a Google-compatible model
+                if modified_request.model.startswith("gpt-") or modified_request.model.startswith("claude-"):
+                    # Fallback to Google's default model if an incompatible model was selected
+                    final_model = "gemini-flash"  # Use the alias that maps to the correct model
+                else:
+                    final_model = modified_request.model
+            
             if provider_name == "openai":
                 return await temp_router.call_openai(
                     api_key=api_key,
-                    model=modified_request.model,
+                    model=final_model,
                     messages=[{"role": m.role, "content": m.content} for m in modified_request.messages],
                     temperature=modified_request.temperature,
                     max_tokens=modified_request.max_tokens
@@ -268,7 +294,7 @@ class AutopilotEngine:
             elif provider_name == "google":
                 return await temp_router.call_google(
                     api_key=api_key,
-                    model=modified_request.model,
+                    model=final_model,
                     messages=[{"role": m.role, "content": m.content} for m in modified_request.messages],
                     temperature=modified_request.temperature,
                     max_tokens=modified_request.max_tokens
@@ -276,7 +302,7 @@ class AutopilotEngine:
             elif provider_name == "anthropic":
                 return await temp_router.call_anthropic(
                     api_key=api_key,
-                    model=modified_request.model,
+                    model=final_model,
                     messages=[{"role": m.role, "content": m.content} for m in modified_request.messages],
                     temperature=modified_request.temperature,
                     max_tokens=modified_request.max_tokens
@@ -291,12 +317,26 @@ class AutopilotEngine:
             api_call_function=execute_llm_call
         )
 
+        # Calculate cost from the response
+        from ..services.pricing import calculate_cost
+        usage = final_response.get('usage', {})
+        cost = calculate_cost(
+            model=selected_model,
+            prompt_tokens=usage.get('prompt_tokens', 0),
+            completion_tokens=usage.get('completion_tokens', 0)
+        )
+        
         return {
             'response': final_response,
             'autopilot_metadata': {
                 'enabled': True,
                 'selected_model': selected_model,
-                'routing_reason': routing_reason
+                'routing_reason': routing_reason,
+                'provider_info': {
+                    'name': provider_name,
+                    'model': selected_model,
+                    'cost': float(cost)
+                }
             }
         }
 
@@ -321,23 +361,125 @@ class AutopilotEngine:
 
     async def _fallback_direct_call(self, request: schemas.ChatCompletionRequest, provider: models.ProviderConfig) -> dict:
         """Direct provider call without autopilot (emergency fallback)."""
+        from ..services.pricing import calculate_cost
+        
         api_key = provider.get_api_key()
         provider_name = str(provider.provider)
         
-        temp_router = ProviderRouter(self.db, 0)  # organization_id not needed for direct call
+        # Ensure model is compatible with provider for fallback
+        final_model = request.model
+        if provider_name == "google":
+            # For Google provider, ensure we're using a Google-compatible model
+            if request.model.startswith("gpt-") or request.model.startswith("claude-"):
+                # Fallback to Google's default model if an incompatible model was selected
+                final_model = "gemini-flash"  # Use the alias that maps to the correct model
+            else:
+                final_model = request.model
         
+        temp_router = ProviderRouter(self.db, getattr(provider, 'organization_id', 0))
+        
+        # If the primary provider is Google and it fails due to authentication,
+        # try to find another available provider as fallback
+        if provider_name == "google":
+            try:
+                response = await temp_router.call_google(
+                    api_key=api_key,
+                    model=final_model,
+                    messages=[msg.model_dump() for msg in request.messages],
+                    temperature=request.temperature,
+                    max_tokens=request.max_tokens
+                )
+                
+                # Calculate cost
+                usage = response.get('usage', {})
+                cost = calculate_cost(
+                    model=final_model,
+                    prompt_tokens=usage.get('prompt_tokens', 0),
+                    completion_tokens=usage.get('completion_tokens', 0)
+                )
+                
+                return {
+                    'response': response,
+                    'autopilot_metadata': {
+                        'enabled': False,
+                        'fallback_reason': 'autopilot_error',
+                        'provider_info': {
+                            'name': provider_name,
+                            'model': final_model,
+                            'cost': float(cost)
+                        }
+                    }
+                }
+            except Exception as e:
+                error_msg = str(e)
+                # If it's an authentication error, try other providers
+                if "authentication" in error_msg.lower() or "403" in error_msg or "API key" in error_msg:
+                    logger.warning(f"Google authentication failed: {error_msg}. Trying other providers as fallback.")
+                    
+                    # Get other available providers for this organization
+                    all_providers = temp_router.get_providers(enabled_only=True)
+                    other_providers = [p for p in all_providers if str(p.provider) != "google"]
+                    
+                    for other_provider in other_providers:
+                        try:
+                            other_api_key = other_provider.get_api_key()
+                            other_provider_name = str(other_provider.provider)
+                            
+                            if other_provider_name == "openai":
+                                response = await temp_router.call_openai(
+                                    api_key=other_api_key,
+                                    model=final_model,
+                                    messages=[msg.model_dump() for msg in request.messages],
+                                    temperature=request.temperature,
+                                    max_tokens=request.max_tokens
+                                )
+                            elif other_provider_name == "anthropic":
+                                response = await temp_router.call_anthropic(
+                                    api_key=other_api_key,
+                                    model=final_model,
+                                    messages=[msg.model_dump() for msg in request.messages],
+                                    temperature=request.temperature,
+                                    max_tokens=request.max_tokens
+                                )
+                            else:
+                                continue  # Skip unsupported providers
+                            
+                            # Calculate cost
+                            usage = response.get('usage', {})
+                            cost = calculate_cost(
+                                model=final_model,
+                                prompt_tokens=usage.get('prompt_tokens', 0),
+                                completion_tokens=usage.get('completion_tokens', 0)
+                            )
+                            
+                            logger.info(f"Successfully used {other_provider_name} as fallback for Google failure")
+                            return {
+                                'response': response,
+                                'autopilot_metadata': {
+                                    'enabled': False,
+                                    'fallback_reason': 'google_auth_failed_switched_to_other_provider',
+                                    'provider_info': {
+                                        'name': other_provider_name,
+                                        'model': final_model,
+                                        'cost': float(cost)
+                                    }
+                                }
+                            }
+                        except Exception as fallback_error:
+                            logger.warning(f"Fallback to {other_provider_name} also failed: {fallback_error}")
+                            continue
+                    
+                    # If all fallbacks fail, raise the original Google error
+                    raise Exception(f"Google authentication failed and no fallback providers available: {error_msg}")
+                else:
+                    # For non-authentication errors, raise as is
+                    raise e
+        
+        # For non-Google providers, use the original logic
         if provider_name == "openai":
             response = await temp_router.call_openai(
                 api_key=api_key,
-                model=request.model,
-                messages=[msg.model_dump() for msg in request.messages],
-                temperature=request.temperature,
-                max_tokens=request.max_tokens
-            )
-        elif provider_name == "google":
-            response = await temp_router.call_google(
-                api_key=api_key,
-                model=request.model,
+                model=final_model,
                 messages=[msg.model_dump() for msg in request.messages],
                 temperature=request.temperature,
                 max_tokens=request.max_tokens
@@ -345,7 +487,7 @@ class AutopilotEngine:
         elif provider_name == "anthropic":
             response = await temp_router.call_anthropic(
                 api_key=api_key,
-                model=request.model,
+                model=final_model,
                 messages=[msg.model_dump() for msg in request.messages],
                 temperature=request.temperature,
                 max_tokens=request.max_tokens
@@ -353,11 +495,24 @@ class AutopilotEngine:
         else:
             raise Exception(f"Unsupported provider: {provider_name}")
         
+        # Calculate cost
+        usage = response.get('usage', {})
+        cost = calculate_cost(
+            model=final_model,
+            prompt_tokens=usage.get('prompt_tokens', 0),
+            completion_tokens=usage.get('completion_tokens', 0)
+        )
+        
         return {
             'response': response,
             'autopilot_metadata': {
                 'enabled': False,
-                'fallback_reason': 'autopilot_error'
+                'fallback_reason': 'autopilot_error',
+                'provider_info': {
+                    'name': provider_name,
+                    'model': final_model,
+                    'cost': float(cost)
+                }
             }
         }
 

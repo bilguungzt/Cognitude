@@ -30,6 +30,14 @@ PRICING: Dict[str, Dict[str, Decimal]] = {
     "llama3-8b-8192": {"input": Decimal("0.05"), "output": Decimal("0.10")},
     "mixtral-8x7b-32768": {"input": Decimal("0.27"), "output": Decimal("0.27")},
     "gemma-7b-it": {"input": Decimal("0.07"), "output": Decimal("0.07")},
+    
+    # Google Gemini
+    "gemini-2.0-flash-exp": {"input": Decimal("0.00"), "output": Decimal("0.00")},  # Free during preview
+    "gemini-2.5-flash-lite": {"input": Decimal("0.00"), "output": Decimal("0.00")},  # Free during preview
+    "gemini-pro": {"input": Decimal("0.50"), "output": Decimal("1.50")},
+    "gemini-flash": {"input": Decimal("0.075"), "output": Decimal("0.30")},
+    "gemini-1.5-pro": {"input": Decimal("3.50"), "output": Decimal("10.50")},
+    "gemini-1.5-flash": {"input": Decimal("0.075"), "output": Decimal("0.30")},
 }
 
 # Default pricing for unknown models
@@ -37,6 +45,34 @@ DEFAULT_PRICING = {"input": Decimal("1.00"), "output": Decimal("2.00")}
 
 
 def calculate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> Decimal:
+    """
+    Calculate cost for an LLM request based on token usage.
+    
+    Args:
+        model: Model name/identifier
+        prompt_tokens: Number of input tokens
+        completion_tokens: Number of output tokens
+        
+    Returns:
+        Total cost in USD as Decimal
+    """
+    try:
+        prompt_tokens = int(prompt_tokens)
+        completion_tokens = int(completion_tokens)
+    except (ValueError, TypeError):
+        prompt_tokens = 0
+        completion_tokens = 0
+        
+    pricing = PRICING.get(model, DEFAULT_PRICING)
+    
+    # Calculate costs (pricing is per 1M tokens)
+    input_cost = (Decimal(prompt_tokens) / Decimal("1000000")) * pricing["input"]
+    output_cost = (Decimal(completion_tokens) / Decimal("1000000")) * pricing["output"]
+    
+    total_cost = input_cost + output_cost
+    
+    # Round to 6 decimal places (sub-cent precision)
+    return total_cost.quantize(Decimal("0.000001"))
     """
     Calculate cost for an LLM request based on token usage.
     

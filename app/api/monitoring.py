@@ -32,27 +32,34 @@ def health_check(db: Session = Depends(get_db)):
 
     Checks the status of the database and Redis connections.
     """
+    status_overall = "healthy"
+    details = {"status": "healthy", "checks": {}}
+    
     # 1. Check Database Connection
     try:
         db.execute(text("SELECT 1"))
+        details["checks"]["database"] = {"status": "healthy"}
     except Exception as e:
-        raise HTTPException(
-            status_code=503,
-            detail={"status": "unhealthy", "service": "database", "error": str(e)},
-        )
+        details["checks"]["database"] = {"status": "unhealthy", "error": str(e)}
+        status_overall = "unhealthy"
 
     # 2. Check Redis Connection
+    # NOTE: Redis is optional for basic functionality - the app can work without it
+    # We'll log Redis status but won't fail the health check if Redis is unavailable
     if not redis_cache.available or not redis_cache.redis:
+        details["checks"]["redis"] = {"status": "unavailable", "message": "Redis not available - using database fallback"}
+    else:
+        try:
+            redis_cache.redis.ping()
+            details["checks"]["redis"] = {"status": "healthy"}
+        except Exception as e:
+            details["checks"]["redis"] = {"status": "unhealthy", "error": str(e)}
+
+    # Only fail health check if database is unhealthy (database is critical)
+    if details["checks"]["database"]["status"] == "unhealthy":
         raise HTTPException(
             status_code=503,
-            detail={"status": "unhealthy", "service": "redis", "error": "Redis client not available"},
-        )
-    try:
-        redis_cache.redis.ping()
-    except Exception as e:
-        raise HTTPException(
-            status_code=503,
-            detail={"status": "unhealthy", "service": "redis", "error": str(e)},
+            detail=details,
         )
 
-    return {"status": "healthy"}
+    return details

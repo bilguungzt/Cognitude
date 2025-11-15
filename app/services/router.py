@@ -8,14 +8,13 @@ import time
 
 from .. import crud, models
 
-
 class ProviderRouter:
     """Routes LLM requests to appropriate provider based on model and configuration."""
     
     def __init__(self, db: Session, organization_id: int):
         self.db = db
         self.organization_id = organization_id
-        self._providers = None
+        self._providers: Optional[List[models.ProviderConfig]] = None
     
     def get_providers(self, enabled_only: bool = True) -> List[models.ProviderConfig]:
         """Get provider configurations, sorted by priority."""
@@ -33,38 +32,27 @@ class ProviderRouter:
         1. Model name prefix (gpt-* -> openai, claude-* -> anthropic, etc.)
         2. Provider priority
         3. Provider enabled status
-        
-        Args:
-            model: Model identifier (e.g., "gpt-4-0125-preview", "claude-3-opus-20240229")
-            
-        Returns:
-            ProviderConfig or None if no suitable provider found
         """
         providers = self.get_providers(enabled_only=True)
         
         if not providers:
             return None
         
-        # Determine provider from model name
         provider_name = None
         if model.startswith("gpt-"):
             provider_name = "openai"
         elif model.startswith("claude-"):
             provider_name = "anthropic"
-        # Mistral provider support removed (deprecated in this deployment)
         elif "llama" in model.lower() or "mixtral" in model.lower() or "gemma" in model.lower():
             provider_name = "groq"
         elif "gemini" in model.lower():
             provider_name = "google"
         
-        # Find matching provider
         if provider_name:
-            matching_providers = [p for p in providers if p.provider == provider_name]
+            matching_providers = [p for p in providers if str(p.provider) == provider_name]
             if matching_providers:
-                # Return highest priority
                 return max(matching_providers, key=lambda p: p.priority)
         
-        # Fallback: return highest priority provider
         return max(providers, key=lambda p: p.priority) if providers else None
     
     async def call_openai(
@@ -74,29 +62,17 @@ class ProviderRouter:
         messages: List[Dict[str, str]], 
         **kwargs
     ) -> Dict[str, Any]:
-        """
-        Call OpenAI API.
-        
-        Args:
-            api_key: OpenAI API key
-            model: Model name
-            messages: List of message dicts
-            **kwargs: Additional parameters (temperature, max_tokens, etc.)
-            
-        Returns:
-            Response dict from OpenAI API
-        """
+        """Call OpenAI API."""
         try:
             from openai import OpenAI
             client = OpenAI(api_key=api_key)
             
             completion = client.chat.completions.create(
                 model=model,
-                messages=messages,
+                messages=messages,  # type: ignore
                 **kwargs
             )
             
-            # Convert to dict
             return {
                 "id": completion.id,
                 "model": completion.model,
@@ -130,19 +106,7 @@ class ProviderRouter:
         messages: List[Dict[str, str]],
         **kwargs
     ) -> Dict[str, Any]:
-        """
-        Call Anthropic Claude API.
-        
-        Args:
-            api_key: Anthropic API key
-            model: Model name
-            messages: List of message dicts
-            **kwargs: Additional parameters
-            
-        Returns:
-            Response dict compatible with OpenAI format
-        """
-        # Convert messages to Anthropic format
+        """Call Anthropic Claude API."""
         anthropic_messages = []
         system_message = None
         
@@ -150,12 +114,8 @@ class ProviderRouter:
             if msg["role"] == "system":
                 system_message = msg["content"]
             else:
-                anthropic_messages.append({
-                    "role": msg["role"],
-                    "content": msg["content"]
-                })
+                anthropic_messages.append({"role": msg["role"], "content": msg["content"]})
         
-        # Call Anthropic API
         async with httpx.AsyncClient() as client:
             headers = {
                 "x-api-key": api_key,
@@ -186,7 +146,6 @@ class ProviderRouter:
             
             result = response.json()
             
-            # Convert to OpenAI-compatible format
             return {
                 "id": result["id"],
                 "model": result["model"],
@@ -199,10 +158,7 @@ class ProviderRouter:
                 "choices": [
                     {
                         "index": 0,
-                        "message": {
-                            "role": "assistant",
-                            "content": result["content"][0]["text"],
-                        },
+                        "message": {"role": "assistant", "content": result["content"][0]["text"]},
                         "finish_reason": result["stop_reason"],
                     }
                 ],
@@ -215,33 +171,23 @@ class ProviderRouter:
         messages: List[Dict[str, str]],
         **kwargs
     ) -> Dict[str, Any]:
-        """
-        Call Google Gemini API.
-
-        Returns response in OpenAI-compatible format.
-        """
+        """Call Google Gemini API."""
         try:
             import google.generativeai as genai
             from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
-            # Configure API
+            # Configure the API key
             genai.configure(api_key=api_key)
 
-            # Model mapping
             model_map = {
-                'gemini-2.5-pro': 'gemini-2.0-flash-exp',
-                'gemini-pro': 'gemini-1.5-pro',
-                'gemini-flash': 'gemini-1.5-flash',
+                'gemini-pro': 'gemini-2.0-flash-exp',
+                'gemini-flash': 'gemini-2.5-flash-lite',
             }
-            gemini_model = model_map.get(model, model)
+            gemini_model_name = model_map.get(model, model)
 
-            # Create model
+            # Create the generative model
             gen_model = genai.GenerativeModel(
-                model_name=gemini_model,
-                generation_config={
-                    'temperature': kwargs.get('temperature', 1.0),
-                    'max_output_tokens': kwargs.get('max_tokens', 2048),
-                },
+                model_name=gemini_model_name,
                 safety_settings={
                     HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
                     HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
@@ -250,56 +196,74 @@ class ProviderRouter:
                 }
             )
 
-            # Convert messages
+            generation_config = {
+                "temperature": kwargs.get("temperature", 0.9),
+                "top_p": kwargs.get("top_p", 1),
+                "top_k": kwargs.get("top_k", 1),
+                "max_output_tokens": kwargs.get("max_tokens", 2048),
+            }
+
             system_instruction = None
-            gemini_messages = []
-
+            contents = []
             for msg in messages:
-                role = msg.get('role', 'user')
-                content = msg.get('content', '')
+                if msg["role"] == "system":
+                    system_instruction = msg["content"]
+                else:
+                    contents.append({"role": "user" if msg["role"] == "user" else "model", "parts": [msg["content"]]})
 
-                if role == 'system':
-                    system_instruction = content
-                elif role == 'user':
-                    gemini_messages.append({'role': 'user', 'parts': [content]})
-                elif role == 'assistant':
-                    gemini_messages.append({'role': 'model', 'parts': [content]})
-
-            # Generate response
-            if len(gemini_messages) > 1:
-                chat = gen_model.start_chat(history=gemini_messages[:-1])
-                response = chat.send_message(gemini_messages[-1]['parts'][0])
+            response = gen_model.generate_content(
+                contents,
+                generation_config=generation_config, # type: ignore
+                stream=False,
+            )
+            
+            response_text = ""
+            if response.candidates and response.candidates[0].content.parts:
+                response_text = "".join(part.text for part in response.candidates[0].content.parts)
+            elif response.prompt_feedback.block_reason:
+                 response_text = f"Request blocked due to {response.prompt_feedback.block_reason.name}"
             else:
-                prompt = gemini_messages[0]['parts'][0] if gemini_messages else ""
-                if system_instruction:
-                    prompt = f"{system_instruction}\n\n{prompt}"
-                response = gen_model.generate_content(prompt)
+                response_text = "No response from model."
 
-            # Convert to OpenAI format
-            response_text = response.text
+            # Count tokens using the model
+            prompt_tokens = 0
+            completion_tokens = 0
+            try:
+                prompt_tokens = gen_model.count_tokens(contents).total_tokens
+            except:
+                prompt_tokens = len(str(contents))
+            
+            try:
+                completion_tokens = gen_model.count_tokens(response_text).total_tokens
+            except:
+                completion_tokens = len(response_text)
 
             return {
-                'id': f'chatcmpl-{int(time.time())}',
-                'object': 'chat.completion',
-                'created': int(time.time()),
-                'model': gemini_model,
-                'choices': [{
-                    'index': 0,
-                    'message': {
-                        'role': 'assistant',
-                        'content': response_text,
-                    },
-                    'finish_reason': 'stop',
-                }],
-                'usage': {
-                    'prompt_tokens': sum(len(str(m.get('content', '')).split()) for m in messages),
-                    'completion_tokens': len(response_text.split()),
-                    'total_tokens': sum(len(str(m.get('content', '')).split()) for m in messages) + len(response_text.split()),
-                }
+                "id": f"chatcmpl-{int(time.time())}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": gemini_model_name,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": response_text},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": prompt_tokens + completion_tokens,
+                },
             }
         except Exception as e:
-            raise Exception(f"Google Gemini API error: {str(e)}")
-    
+            error_msg = str(e)
+            # Check if it's an authentication error
+            if "403" in error_msg or "API key" in error_msg or "authentication" in error_msg.lower():
+                raise Exception(f"Google Gemini authentication error: {error_msg}. Please verify your API key is correct and has not been revoked.")
+            else:
+                raise Exception(f"Google Gemini API error: {error_msg}")
+
     async def call_provider(
         self,
         provider_config: models.ProviderConfig,
@@ -307,20 +271,9 @@ class ProviderRouter:
         messages: List[Dict[str, str]],
         **kwargs
     ) -> Dict[str, Any]:
-        """
-        Route request to appropriate provider.
-        
-        Args:
-            provider_config: Provider configuration
-            model: Model name
-            messages: List of message dicts
-            **kwargs: Additional parameters
-            
-        Returns:
-            Response dict in OpenAI-compatible format
-        """
-        provider_name = provider_config.provider
-        api_key = provider_config.get_api_key()  # This method decrypts api_key_encrypted
+        """Route request to appropriate provider."""
+        provider_name = str(provider_config.provider)
+        api_key = provider_config.get_api_key()
         
         if provider_name == "openai":
             return await self.call_openai(api_key, model, messages, **kwargs)
@@ -337,36 +290,17 @@ class ProviderRouter:
         messages: List[Dict[str, str]],
         **kwargs
     ) -> Dict[str, Any]:
-        """
-        Call provider with automatic fallback to alternatives on failure.
-        
-        Args:
-            model: Model name
-            messages: List of message dicts
-            **kwargs: Additional parameters
-            
-        Returns:
-            Response dict from successful provider
-            
-        Raises:
-            Exception if all providers fail
-        """
-        # Get primary provider
+        """Call provider with automatic fallback to alternatives on failure."""
         primary_provider = self.select_provider(model)
         
         if not primary_provider:
             raise Exception("No provider configured for this model")
         
-        # Try primary provider
         try:
             return await self.call_provider(primary_provider, model, messages, **kwargs)
         except Exception as primary_error:
-            # Try fallback providers
             all_providers = self.get_providers(enabled_only=True)
-            fallback_providers = [
-                p for p in all_providers 
-                if p.id != primary_provider.id
-            ]
+            fallback_providers = [p for p in all_providers if p.id != primary_provider.id]
             
             for fallback in fallback_providers:
                 try:
@@ -374,7 +308,6 @@ class ProviderRouter:
                 except Exception:
                     continue
             
-            # All providers failed
             raise Exception(f"All providers failed. Primary error: {str(primary_error)}")
     
     async def test_provider_connection(
@@ -385,19 +318,7 @@ class ProviderRouter:
         messages: List[Dict[str, str]],
         **kwargs
     ) -> Dict[str, Any]:
-        """
-        Test connection to a provider without requiring a saved config.
-        
-        Args:
-            provider_name: Provider name (openai, anthropic, google)
-            api_key: API key to test
-            model: Model name
-            messages: Test messages
-            **kwargs: Additional parameters
-            
-        Returns:
-            Response dict from the provider
-        """
+        """Test connection to a provider without requiring a saved config."""
         if provider_name == "openai":
             return await self.call_openai(api_key, model, messages, **kwargs)
         elif provider_name == "anthropic":
