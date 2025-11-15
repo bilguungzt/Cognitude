@@ -7,7 +7,7 @@ from sqlalchemy import text
 from prometheus_client import Counter, Histogram, generate_latest
 
 from ..database import get_db
-from ..services.redis_cache import redis_cache, redis
+from ..services.redis_cache import redis_cache
 
 router = APIRouter()
 

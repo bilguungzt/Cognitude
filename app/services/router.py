@@ -217,71 +217,86 @@ class ProviderRouter:
     ) -> Dict[str, Any]:
         """
         Call Google Gemini API.
-        
-        Args:
-            api_key: Google AI API key
-            model: Model name (e.g., "gemini-pro", "gemini-1.5-flash")
-            messages: List of message dicts
-            **kwargs: Additional parameters
-            
-        Returns:
-            Response dict compatible with OpenAI format
+
+        Returns response in OpenAI-compatible format.
         """
         try:
             import google.generativeai as genai
-            
+            from google.generativeai.types import HarmCategory, HarmBlockThreshold
+
+            # Configure API
             genai.configure(api_key=api_key)
-            
-            # Initialize the model
-            gemini_model = genai.GenerativeModel(model)
-            
-            # Convert messages to Gemini format
-            # For simplicity, combine all messages into a single prompt
-            conversation_parts = []
-            
-            for msg in messages:
-                if msg["role"] == "system":
-                    conversation_parts.append(f"System: {msg['content']}")
-                elif msg["role"] == "user":
-                    conversation_parts.append(f"User: {msg['content']}")
-                elif msg["role"] == "assistant":
-                    conversation_parts.append(f"Assistant: {msg['content']}")
-            
-            # Combine conversation
-            prompt = "\n".join(conversation_parts)
-            
-            # Generate response
-            response = gemini_model.generate_content(
-                prompt,
+
+            # Model mapping
+            model_map = {
+                'gemini-2.5-pro': 'gemini-2.0-flash-exp',
+                'gemini-pro': 'gemini-1.5-pro',
+                'gemini-flash': 'gemini-1.5-flash',
+            }
+            gemini_model = model_map.get(model, model)
+
+            # Create model
+            gen_model = genai.GenerativeModel(
+                model_name=gemini_model,
                 generation_config={
-                    "temperature": kwargs.get("temperature", 1.0),
-                    "max_output_tokens": kwargs.get("max_tokens", 2048),
+                    'temperature': kwargs.get('temperature', 1.0),
+                    'max_output_tokens': kwargs.get('max_tokens', 2048),
+                },
+                safety_settings={
+                    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+                    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
                 }
             )
-            
-            # Convert to OpenAI-compatible format
+
+            # Convert messages
+            system_instruction = None
+            gemini_messages = []
+
+            for msg in messages:
+                role = msg.get('role', 'user')
+                content = msg.get('content', '')
+
+                if role == 'system':
+                    system_instruction = content
+                elif role == 'user':
+                    gemini_messages.append({'role': 'user', 'parts': [content]})
+                elif role == 'assistant':
+                    gemini_messages.append({'role': 'model', 'parts': [content]})
+
+            # Generate response
+            if len(gemini_messages) > 1:
+                chat = gen_model.start_chat(history=gemini_messages[:-1])
+                response = chat.send_message(gemini_messages[-1]['parts'][0])
+            else:
+                prompt = gemini_messages[0]['parts'][0] if gemini_messages else ""
+                if system_instruction:
+                    prompt = f"{system_instruction}\n\n{prompt}"
+                response = gen_model.generate_content(prompt)
+
+            # Convert to OpenAI format
+            response_text = response.text
+
             return {
-                "id": f"gemini-{int(time.time())}",
-                "model": model,
-                "created": int(time.time()),
-                "usage": {
-                    "prompt_tokens": len(prompt.split()),  # Rough estimate
-                    "completion_tokens": len(response.text.split()),  # Rough estimate
-                    "total_tokens": len(prompt.split()) + len(response.text.split()),
-                },
-                "choices": [
-                    {
-                        "index": 0,
-                        "message": {
-                            "role": "assistant",
-                            "content": response.text,
-                        },
-                        "finish_reason": "stop",
-                    }
-                ],
+                'id': f'chatcmpl-{int(time.time())}',
+                'object': 'chat.completion',
+                'created': int(time.time()),
+                'model': gemini_model,
+                'choices': [{
+                    'index': 0,
+                    'message': {
+                        'role': 'assistant',
+                        'content': response_text,
+                    },
+                    'finish_reason': 'stop',
+                }],
+                'usage': {
+                    'prompt_tokens': sum(len(str(m.get('content', '')).split()) for m in messages),
+                    'completion_tokens': len(response_text.split()),
+                    'total_tokens': sum(len(str(m.get('content', '')).split()) for m in messages) + len(response_text.split()),
+                }
             }
-        except ImportError:
-            raise Exception("google-generativeai package not installed")
         except Exception as e:
             raise Exception(f"Google Gemini API error: {str(e)}")
     
@@ -305,7 +320,7 @@ class ProviderRouter:
             Response dict in OpenAI-compatible format
         """
         provider_name = provider_config.provider
-        api_key = provider_config.api_key  # This property decrypts api_key_encrypted
+        api_key = provider_config.get_api_key()  # This method decrypts api_key_encrypted
         
         if provider_name == "openai":
             return await self.call_openai(api_key, model, messages, **kwargs)

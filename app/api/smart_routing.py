@@ -140,12 +140,22 @@ async def smart_completions(
         presence_penalty=request.presence_penalty
     )
     
-    # Call standard proxy endpoint
-    response = await chat_completions(
-        request_body=standard_request,
-        db=db,
-        organization=organization
-    )
+    selected_provider_name = routing_decision["selected_provider"]
+    selected_provider = provider_router.select_provider(selected_model)
+    
+    # Get the SQLAlchemy organization model
+    from .. import models
+    org_model = db.query(models.Organization).filter(models.Organization.id == organization.id).first()
+    if not org_model:
+        raise HTTPException(status_code=404, detail="Organization not found.")
+    
+    # Call LLM via Autopilot directly
+    from ..core.autopilot import AutopilotEngine
+    from ..services.redis_cache import redis_cache
+    
+    autopilot = AutopilotEngine(db, redis_cache, provider_router)
+    result = await autopilot.process_request(standard_request, org_model, selected_provider)
+    response = result['response']
     
     # Add smart routing metadata
     response["smart_routing"] = {

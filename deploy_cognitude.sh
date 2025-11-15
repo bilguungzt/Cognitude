@@ -69,24 +69,26 @@ ENDSSH
 
 echo ""
 echo "⚙️  Step 4: Configuring environment..."
-sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $SERVER << 'ENDSSH'
+sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $SERVER << ENDSSH
+export PROD_DATABASE_URL='$PROD_DATABASE_URL'
+export PROD_REDIS_URL='$PROD_REDIS_URL'
 cd /opt/cognitude
 
 # Create .env file if it doesn't exist
 if [ ! -f .env ]; then
-    cat > .env << 'ENVEOF'
-# Database
-DATABASE_URL=postgresql+psycopg2://coguser:cogpass123@db/cognitude_db
+    cat > .env << ENVEOF
+# Database (using Supabase connection pooler)
+DATABASE_URL=postgresql://postgres.svssbodchjapyeiuoxjm:jllDZQmL4kRLBOOz@aws-0-us-west-2.pooler.supabase.com:5432/postgres
 
 # Redis
-REDIS_URL=redis://redis:6379/0
+REDIS_URL=\$PROD_REDIS_URL
 
 # API Keys (add your keys here)
 # OPENAI_API_KEY=sk-...
 # ANTHROPIC_API_KEY=sk-ant-...
 
 # JWT Secret (generate a secure one)
-SECRET_KEY=$(openssl rand -hex 32)
+SECRET_KEY=\$(openssl rand -hex 32)
 
 # Email (optional)
 # SMTP_HOST=smtp.gmail.com
@@ -104,49 +106,18 @@ else
 fi
 
 # Update docker-compose.yml for production
-cat > docker-compose.prod.yml << 'COMPOSE'
+cat > docker-compose.prod.yml << COMPOSE
 services:
-  db:
-    image: timescale/timescaledb:latest-pg14
-    restart: always
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    environment:
-      POSTGRES_USER: coguser
-      POSTGRES_PASSWORD: cogpass123
-      POSTGRES_DB: cognitude_db
-    networks:
-      - cognitude-network
-
-  redis:
-    image: redis:7-alpine
-    restart: always
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
-    volumes:
-      - redis_data:/data
-    networks:
-      - cognitude-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
   api:
     build: .
     restart: always
     ports:
       - "8000:8000"
-    depends_on:
-      - db
-      - redis
     environment:
-      - DATABASE_URL=postgresql+psycopg2://coguser:cogpass123@db/cognitude_db
-      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://postgres.svssbodchjapyeiuoxjm:jllDZQmL4kRLBOOz@aws-0-us-west-2.pooler.supabase.com:5432/postgres
+      - REDIS_URL=\$PROD_REDIS_URL
     env_file:
       - .env
-    networks:
-      - cognitude-network
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 volumes:
@@ -166,14 +137,23 @@ echo "🐳 Step 5: Starting services..."
 sshpass -p "$SSH_PASS" ssh -o StrictHostKeyChecking=no $SERVER << 'ENDSSH'
 cd /opt/cognitude
 
+# Unset DOCKER_HOST to avoid connection issues
+unset DOCKER_HOST
+
+# Kill any process using port 8000
+sudo fuser -k 8000/tcp || true
+# Remove any stopped containers
+docker ps -aq | xargs docker rm -f || true
+
 # Build and start services
-docker-compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml down --volumes --remove-orphans || true
+docker compose -f docker-compose.prod.yml up -d --build
 
 echo "Waiting for services to start..."
 sleep 10
 
 # Check status
-docker-compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml ps
 
 echo ""
 echo "✅ Services started!"
@@ -195,7 +175,7 @@ echo "💚 Health Check: http://165.22.158.75:8000/health"
 echo ""
 echo "📝 Next steps:"
 echo "   1. Add your API keys to /opt/cognitude/.env on the server"
-echo "   2. Restart services: ssh $SERVER 'cd /opt/cognitude && docker-compose -f docker-compose.prod.yml restart'"
+echo "   2. Restart services: ssh $SERVER 'cd /opt/cognitude && docker compose -f docker-compose.prod.yml restart'"
 echo "   3. Set up Nginx reverse proxy (optional)"
 echo "   4. Configure SSL with Let's Encrypt (optional)"
 echo ""

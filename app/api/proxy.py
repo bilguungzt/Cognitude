@@ -111,8 +111,8 @@ router = APIRouter(tags=["proxy"])
 @limiter.limit("100/minute")
 async def chat_completions(
     request_body: schemas.ChatCompletionRequest,
-    request: Optional[Request] = None,
-    response: Optional[Response] = None,
+    request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     organization: schemas.Organization = Depends(get_organization_from_api_key),
     x_cognitude_schema: Optional[str] = Header(None)
