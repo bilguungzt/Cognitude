@@ -8,10 +8,10 @@ from typing import Dict
 PRICING: Dict[str, Dict[str, Decimal]] = {
     # OpenAI
     "gpt-4": {"input": Decimal("30.00"), "output": Decimal("60.00")},
-    "gpt-4-turbo": {"input": Decimal("10.00"), "output": Decimal("30.00")},
+    "gpt-4o": {"input": Decimal("12.00"), "output": Decimal("35.00")},
+    "gpt-4o-mini": {"input": Decimal("1.00"), "output": Decimal("2.50")},
+    "gpt-4-0125-preview": {"input": Decimal("10.00"), "output": Decimal("30.00")},
     "gpt-4-turbo-preview": {"input": Decimal("10.00"), "output": Decimal("30.00")},
-    "gpt-3.5-turbo": {"input": Decimal("0.50"), "output": Decimal("1.50")},
-    "gpt-3.5-turbo-16k": {"input": Decimal("3.00"), "output": Decimal("4.00")},
     
     # Anthropic Claude
     "claude-3-opus-20240229": {"input": Decimal("15.00"), "output": Decimal("75.00")},
@@ -21,11 +21,9 @@ PRICING: Dict[str, Dict[str, Decimal]] = {
     "claude-3-sonnet": {"input": Decimal("3.00"), "output": Decimal("15.00")},
     "claude-3-haiku": {"input": Decimal("0.25"), "output": Decimal("1.25")},
     
-    # Mistral
-    "mistral-large-latest": {"input": Decimal("4.00"), "output": Decimal("12.00")},
-    "mistral-medium-latest": {"input": Decimal("2.70"), "output": Decimal("8.10")},
-    "mistral-small-latest": {"input": Decimal("1.00"), "output": Decimal("3.00")},
-    "mistral-tiny": {"input": Decimal("0.25"), "output": Decimal("0.25")},
+    # Hugging Face / community models (Llama 3 family examples)
+    "hf/llama-3-70b": {"input": Decimal("0.70"), "output": Decimal("0.80")},
+    "hf/llama-3-13b": {"input": Decimal("0.10"), "output": Decimal("0.20")},
     
     # Groq
     "llama3-70b-8192": {"input": Decimal("0.70"), "output": Decimal("0.80")},

@@ -92,6 +92,23 @@ MODEL_CHARACTERISTICS = {
         quality_score=0.78,
         suitable_for_complexity=["simple", "medium"]
     ),
+    # Google Gemini 2.5 Models
+    "gemini-2.5-pro": ModelOption(
+        name="gemini-2.5-pro",
+        provider="google",
+        estimated_cost=Decimal("0.0020"),  # per 1K tokens (input)
+        estimated_latency_ms=700,
+        quality_score=0.97,
+        suitable_for_complexity=["medium", "complex"]
+    ),
+    "gemini-2.5-flash-lite": ModelOption(
+        name="gemini-2.5-flash-lite",
+        provider="google",
+        estimated_cost=Decimal("0.00025"),  # per 1K tokens (input) - highly cost-effective
+        estimated_latency_ms=250,
+        quality_score=0.88,
+        suitable_for_complexity=["simple", "medium"]
+    ),
 }
 
 

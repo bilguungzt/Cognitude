@@ -9,7 +9,7 @@ from app import schemas, models
 # Mock data for testing
 mock_organization = models.Organization(id=1, name="Test Org", api_key_hash="hashed_key")
 
-def create_mock_request(messages, model="gpt-4", temperature=0.0, max_tokens=100):
+def create_mock_request(messages, model="gpt-4-0125-preview", temperature=0.0, max_tokens=100):
     """Helper to create a mock ChatCompletionRequest."""
     return schemas.ChatCompletionRequest(
         model=model,
@@ -58,11 +58,11 @@ def test_task_classifier(prompt, expected_task):
 
 # --- ModelSelector Tests ---
 @pytest.mark.parametrize("task_type, confidence, original_model, expected_model", [
-    ("classification", 0.9, "gpt-4", "gpt-3.5-turbo"),
-    ("summarization", 0.9, "gpt-4", "gpt-4-turbo"),
-    ("reasoning", 0.9, "gpt-4", "gpt-4"),
-    ("code", 0.9, "gpt-3.5-turbo", "gpt-4"),
-    ("unknown", 0.4, "gpt-4", "gpt-4"), # Low confidence fallback
+    ("classification", 0.9, "gpt-4-0125-preview", "gpt-4o-mini"),
+    ("summarization", 0.9, "gpt-4-0125-preview", "gpt-4o"),
+    ("reasoning", 0.9, "gpt-4-0125-preview", "gpt-4-0125-preview"),
+    ("code", 0.9, "gpt-4o-mini", "gpt-4-0125-preview"),
+    ("unknown", 0.4, "gpt-4-0125-preview", "gpt-4-0125-preview"), # Low confidence fallback
 ])
 def test_model_selector(task_type, confidence, original_model, expected_model):
     selector = ModelSelector()
@@ -79,15 +79,15 @@ async def test_process_request_simple_task_downgrade(mock_process, autopilot_eng
         'response': MagicMock(),
         'autopilot_metadata': {
             'enabled': True,
-            'selected_model': 'gpt-3.5-turbo',
+            'selected_model': 'gpt-4o-mini',
             'routing_reason': 'downgraded_for_simple_task'
         }
     }
-    request = create_mock_request([{"role": "user", "content": "Classify this text."}], model="gpt-4")
+    request = create_mock_request([{"role": "user", "content": "Classify this text."}], model="gpt-4-0125-preview")
     result = await autopilot_engine.process_request(request, mock_organization, "fake_api_key")
 
     mock_process.assert_called_once()
-    assert result['autopilot_metadata']['selected_model'] == "gpt-3.5-turbo"
+    assert result['autopilot_metadata']['selected_model'] == "gpt-4o-mini"
 
 @pytest.mark.asyncio
 @patch('app.core.autopilot.AsyncOpenAI')
@@ -146,7 +146,7 @@ async def test_fallback_on_engine_error(mock_fallback, mock_process, autopilot_e
         "autopilot_metadata": {"enabled": False, "fallback_reason": "autopilot_error"}
     }
 
-    request = create_mock_request([{"role": "user", "content": "This will fail"}], model="gpt-4")
+    request = create_mock_request([{"role": "user", "content": "This will fail"}], model="gpt-4-0125-preview")
     result = await autopilot_engine.process_request(request, mock_organization, "fake_api_key")
 
     mock_process.assert_called_once()
@@ -167,17 +167,17 @@ async def test_end_to_end_process_request_structure(mock_process, autopilot_engi
         'response': {"id": "chatcmpl-xyz", "choices": []},
         'autopilot_metadata': {
             'enabled': True,
-            'selected_model': 'gpt-4-turbo',
+            'selected_model': 'gpt-4-turbo-preview',
             'routing_reason': 'summarization_task'
         }
     }
-    request = create_mock_request([{"role": "user", "content": "Summarize this article for me."}], model="gpt-4")
+    request = create_mock_request([{"role": "user", "content": "Summarize this article for me."}], model="gpt-4-0125-preview")
     result = await autopilot_engine.process_request(request, mock_organization, "fake_api_key")
 
     assert 'response' in result
     assert 'autopilot_metadata' in result
     metadata = result['autopilot_metadata']
     assert metadata['enabled'] is True
-    assert metadata['selected_model'] == 'gpt-4-turbo'
+    assert metadata['selected_model'] == 'gpt-4-turbo-preview'
     
     mock_process.assert_called_once()

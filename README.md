@@ -9,7 +9,7 @@ Cognitude AI is a comprehensive LLM proxy and ML model monitoring platform. This
 - **🔄 OpenAI Compatible**: Drop-in replacement for OpenAI SDK
 - **💾 Intelligent Caching**: 30-70% cost savings through Redis-powered response caching
 - **🧠 Smart Routing**: Automatic model selection based on task complexity (30-50% additional savings)
-- **🌐 Multi-Provider Support**: OpenAI, Anthropic, Mistral, Groq
+- **🌐 Multi-Provider Support**: OpenAI, Anthropic, Hugging Face, Groq
 - **💰 Cost Tracking**: Accurate per-request cost calculation and analytics
 - **📊 Advanced Analytics**: Usage metrics, recommendations, and insights
 - **⚡ High Performance**: Sub-10ms cache lookups, 5x faster than traditional caching

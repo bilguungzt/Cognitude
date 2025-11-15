@@ -2,7 +2,6 @@
 Redis-based caching service for LLM responses.
 Provides fast cache lookups (<10ms) with automatic TTL expiration.
 """
-import redis
 import json
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
@@ -27,18 +26,40 @@ class RedisCache:
         """Initialize Redis connection."""
         self.redis = None
         self.available = False
+        self.is_upstash = False
         
         # Try Upstash Redis first if token is provided
         if settings.REDIS_TOKEN and settings.REDIS_URL:
             try:
                 from upstash_redis import Redis as UpstashRedis
+                
+                # Determine Upstash REST URL
+                redis_url = str(settings.REDIS_URL).strip().strip('"').strip("'")
+                print(f"DEBUG: Original REDIS_URL: {redis_url}")
+                if redis_url.startswith("https://"):
+                    # Already a REST URL
+                    upstash_url = redis_url
+                elif redis_url.startswith("rediss://") or redis_url.startswith("redis://"):
+                    # Extract host from TCP URL for REST API
+                    # Format: rediss://user:pass@host:port or redis://host:port
+                    if "@" in redis_url:
+                        host_part = redis_url.split("@")[-1].split(":")[0]
+                    else:
+                        host_part = redis_url.split("://")[-1].split(":")[0]
+                    upstash_url = f"https://{host_part}"
+                    print(f"DEBUG: Extracted host_part: {host_part}, upstash_url: {upstash_url}")
+                else:
+                    # Assume it's just host:port, add https://
+                    upstash_url = f"https://{redis_url}"
+                
                 self.redis = UpstashRedis(
-                    url=str(settings.REDIS_URL),
+                    url=upstash_url,
                     token=str(settings.REDIS_TOKEN)
                 )
                 # Test connection
                 self.redis.ping()
                 self.available = True
+                self.is_upstash = True
                 print("✅ Upstash Redis connected successfully")
                 return
             except Exception as e:
@@ -50,8 +71,19 @@ class RedisCache:
         if settings.REDIS_URL and not self.available:
             try:
                 import redis
+                redis_url = str(settings.REDIS_URL)
+                
+                # Ensure URL has proper scheme
+                if not redis_url.startswith(("redis://", "rediss://", "unix://")):
+                    if ":" in redis_url and not redis_url.startswith("http"):
+                        # Assume host:port format, add redis://
+                        redis_url = f"redis://{redis_url}"
+                    else:
+                        # Try as-is, might be malformed
+                        pass
+                
                 self.redis = redis.from_url(
-                    str(settings.REDIS_URL),
+                    redis_url,
                     decode_responses=True,
                     socket_timeout=2,
                     socket_connect_timeout=2
@@ -59,8 +91,9 @@ class RedisCache:
                 # Test connection
                 self.redis.ping()
                 self.available = True
+                self.is_upstash = False
                 print("✅ Traditional Redis connected successfully")
-            except (redis.ConnectionError, redis.TimeoutError) as e:
+            except (redis.ConnectionError, redis.TimeoutError, ValueError) as e:
                 print(f"❌ Traditional Redis connection failed: {e}")
                 self.redis = None
                 self.available = False
@@ -87,9 +120,17 @@ class RedisCache:
             cached_data = self.redis.get(redis_key)
             
             if cached_data:
+                # Parse the cached data
+                if isinstance(cached_data, bytes):
+                    cached_data = cached_data.decode('utf-8')
+                
                 # Increment hit counter
                 self.redis.hincrby(f"cache_stats:{organization_id}:{cache_key}", "hits", 1)
-                self.redis.hset(f"cache_stats:{organization_id}:{cache_key}", "last_accessed", datetime.utcnow().isoformat())
+                self.redis.hset(
+                    f"cache_stats:{organization_id}:{cache_key}", 
+                    "last_accessed", 
+                    datetime.utcnow().isoformat()
+                )
                 
                 return json.loads(cached_data)
             
@@ -146,17 +187,21 @@ class RedisCache:
                 "cached_at": datetime.utcnow().isoformat()
             }
             
+            # Calculate TTL in seconds
+            ttl_seconds = int(timedelta(hours=ttl_hours).total_seconds())
+            
+            # Set with expiration
             self.redis.setex(
                 redis_key,
-                timedelta(hours=ttl_hours),
+                ttl_seconds,
                 json.dumps(cache_entry)
             )
             
             # Initialize stats counter
             stats_key = f"cache_stats:{organization_id}:{cache_key}"
-            self.redis.hset(stats_key, "hits", 0)
+            self.redis.hset(stats_key, "hits", "0")
             self.redis.hset(stats_key, "created_at", datetime.utcnow().isoformat())
-            self.redis.expire(stats_key, timedelta(hours=ttl_hours))
+            self.redis.expire(stats_key, ttl_seconds)
             
             return True
             
@@ -184,14 +229,34 @@ class RedisCache:
         try:
             # Count cache entries for organization
             pattern = f"llm_cache:{organization_id}:*"
-            keys = list(self.redis.scan_iter(match=pattern, count=100))
+            
+            # Different scan methods for Upstash vs traditional Redis
+            if self.is_upstash:
+                # Upstash may not support scan_iter, use keys() with caution
+                try:
+                    keys = self.redis.keys(pattern)
+                except:
+                    # Fallback: manual scan
+                    keys = []
+                    cursor = 0
+                    while True:
+                        cursor, partial_keys = self.redis.scan(cursor, match=pattern, count=100)
+                        keys.extend(partial_keys)
+                        if cursor == 0:
+                            break
+            else:
+                # Traditional Redis with scan_iter
+                keys = list(self.redis.scan_iter(match=pattern, count=100))
             
             total_hits = 0
             for key in keys:
-                cache_key = key.split(":")[-1]
+                cache_key = key.split(":")[-1] if isinstance(key, str) else key.decode('utf-8').split(":")[-1]
                 stats_key = f"cache_stats:{organization_id}:{cache_key}"
                 hits = self.redis.hget(stats_key, "hits")
                 if hits:
+                    # Handle both string and bytes responses
+                    if isinstance(hits, bytes):
+                        hits = hits.decode('utf-8')
                     total_hits += int(hits)
             
             return {
@@ -223,11 +288,33 @@ class RedisCache:
         try:
             # Find all cache keys for organization
             pattern = f"llm_cache:{organization_id}:*"
-            keys = list(self.redis.scan_iter(match=pattern, count=100))
-            
-            # Also delete stats keys
             stats_pattern = f"cache_stats:{organization_id}:*"
-            stats_keys = list(self.redis.scan_iter(match=stats_pattern, count=100))
+            
+            # Different scan methods for Upstash vs traditional Redis
+            if self.is_upstash:
+                try:
+                    keys = self.redis.keys(pattern)
+                    stats_keys = self.redis.keys(stats_pattern)
+                except:
+                    # Fallback: manual scan
+                    keys = []
+                    cursor = 0
+                    while True:
+                        cursor, partial_keys = self.redis.scan(cursor, match=pattern, count=100)
+                        keys.extend(partial_keys)
+                        if cursor == 0:
+                            break
+                    
+                    stats_keys = []
+                    cursor = 0
+                    while True:
+                        cursor, partial_keys = self.redis.scan(cursor, match=stats_pattern, count=100)
+                        stats_keys.extend(partial_keys)
+                        if cursor == 0:
+                            break
+            else:
+                keys = list(self.redis.scan_iter(match=pattern, count=100))
+                stats_keys = list(self.redis.scan_iter(match=stats_pattern, count=100))
             
             all_keys = keys + stats_keys
             
@@ -255,10 +342,21 @@ class RedisCache:
         
         try:
             self.redis.ping()
+            
+            # Upstash Redis may not support INFO command
+            if self.is_upstash:
+                return {
+                    "status": "healthy",
+                    "provider": "upstash",
+                    "message": "Upstash Redis connection is healthy"
+                }
+            
+            # Traditional Redis with INFO
             info = self.redis.info()
             
             return {
                 "status": "healthy",
+                "provider": "traditional",
                 "connected_clients": info.get("connected_clients", 0),
                 "used_memory_human": info.get("used_memory_human", "unknown"),
                 "uptime_in_seconds": info.get("uptime_in_seconds", 0)

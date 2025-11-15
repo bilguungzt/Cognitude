@@ -33,6 +33,7 @@ frozenlist==1.8.0
 future
 gevent==25.9.1
 geventhttpclient==2.3.5
+google-generativeai==0.8.3
 greenlet==3.2.4
 h11==0.16.0
 hiredis==3.3.0

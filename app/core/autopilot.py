@@ -15,6 +15,7 @@ from openai import AsyncOpenAI
 
 from .. import schemas, models
 from ..services.redis_cache import RedisCache
+from ..services.router import ProviderRouter
 from .validator import ResponseValidator
 
 logger = logging.getLogger(__name__)
@@ -85,8 +86,8 @@ class ModelSelector:
     """Selects optimal model based on task type and constraints."""
     
     MODEL_TIERS = {
-        'simple': ['gpt-3.5-turbo'],
-        'medium': ['gpt-4-turbo'],
+        'simple': ['gpt-4o-mini'],
+        'medium': ['gpt-4o'],
         'complex': ['gpt-4']
     }
     
@@ -127,13 +128,14 @@ class AutopilotEngine:
     Orchestrates the entire request processing flow, including classification,
     model selection, caching, and logging.
     """
-    def __init__(self, db: Session, redis_client: RedisCache):
+    def __init__(self, db: Session, redis_client: RedisCache, provider_router: Optional[ProviderRouter] = None):
         self.db = db
         self.redis_client = redis_client
+        self.provider_router = provider_router
         self.classifier = TaskClassifier()
         self.selector = ModelSelector()
 
-    async def process_request(self, request: schemas.ChatCompletionRequest, organization: models.Organization, openai_api_key: str) -> dict:
+    async def process_request(self, request: schemas.ChatCompletionRequest, organization: models.Organization, provider: models.ProviderConfig) -> dict:
         """
         Main autopilot processing method.
         
@@ -141,7 +143,7 @@ class AutopilotEngine:
         Always fall back to original model if anything fails.
         """
         try:
-            return await self._process_with_autopilot(request, organization, openai_api_key)
+            return await self._process_with_autopilot(request, organization, provider)
         except Exception as e:
             logger.error(f"Autopilot failed unexpectedly: {str(e)}", exc_info=True)
             # Log failure to database
@@ -160,9 +162,9 @@ class AutopilotEngine:
                 temperature=request.temperature or 1.0,
                 error_message=str(e)
             )
-            return await self._fallback_direct_call(request, openai_api_key)
+            return await self._fallback_direct_call(request, provider)
 
-    async def _process_with_autopilot(self, request: schemas.ChatCompletionRequest, organization: models.Organization, openai_api_key: str) -> dict:
+    async def _process_with_autopilot(self, request: schemas.ChatCompletionRequest, organization: models.Organization, provider: models.ProviderConfig) -> dict:
         """Core autopilot logic."""
         # 1. Classify the task
         messages_dict = [{"role": msg.role, "content": msg.content} for msg in request.messages]
@@ -203,13 +205,38 @@ class AutopilotEngine:
             }
 
         # 4. Call provider
-        client = self._get_openai_client(openai_api_key)
-        response = await client.chat.completions.create(
-            model=selected_model,
-            messages=messages_dict,
-            temperature=request.temperature,
-            max_tokens=request.max_tokens
-        )
+        api_key = provider.get_api_key()
+        provider_name = str(provider.provider)
+        
+        # Create a temporary router for the call
+        temp_router = ProviderRouter(self.db, organization.id)
+        
+        if provider_name == "openai":
+            response = await temp_router.call_openai(
+                api_key=api_key,
+                model=selected_model,
+                messages=messages_dict,
+                temperature=request.temperature,
+                max_tokens=request.max_tokens
+            )
+        elif provider_name == "google":
+            response = await temp_router.call_google(
+                api_key=api_key,
+                model=selected_model,
+                messages=messages_dict,
+                temperature=request.temperature,
+                max_tokens=request.max_tokens
+            )
+        elif provider_name == "anthropic":
+            response = await temp_router.call_anthropic(
+                api_key=api_key,
+                model=selected_model,
+                messages=messages_dict,
+                temperature=request.temperature,
+                max_tokens=request.max_tokens
+            )
+        else:
+            raise Exception(f"Unsupported provider: {provider_name}")
 
         # 5. Log decision to get an ID for the validator
         autopilot_log = await self.log_autopilot_decision(
@@ -230,12 +257,32 @@ class AutopilotEngine:
 
         # 6. Validate and Fix Response
         async def execute_llm_call(modified_request: schemas.ChatCompletionRequest):
-            return await client.chat.completions.create(
-                model=modified_request.model,
-                messages=[{"role": m.role, "content": m.content} for m in modified_request.messages],
-                temperature=modified_request.temperature,
-                max_tokens=modified_request.max_tokens
-            )
+            if provider_name == "openai":
+                return await temp_router.call_openai(
+                    api_key=api_key,
+                    model=modified_request.model,
+                    messages=[{"role": m.role, "content": m.content} for m in modified_request.messages],
+                    temperature=modified_request.temperature,
+                    max_tokens=modified_request.max_tokens
+                )
+            elif provider_name == "google":
+                return await temp_router.call_google(
+                    api_key=api_key,
+                    model=modified_request.model,
+                    messages=[{"role": m.role, "content": m.content} for m in modified_request.messages],
+                    temperature=modified_request.temperature,
+                    max_tokens=modified_request.max_tokens
+                )
+            elif provider_name == "anthropic":
+                return await temp_router.call_anthropic(
+                    api_key=api_key,
+                    model=modified_request.model,
+                    messages=[{"role": m.role, "content": m.content} for m in modified_request.messages],
+                    temperature=modified_request.temperature,
+                    max_tokens=modified_request.max_tokens
+                )
+            else:
+                raise Exception(f"Unsupported provider: {provider_name}")
 
         validator = ResponseValidator(db=self.db, autopilot_log_id=getattr(autopilot_log, 'id'))
         final_response = await validator.validate_and_fix(
@@ -272,16 +319,39 @@ class AutopilotEngine:
         self.db.refresh(log_entry)
         return log_entry
 
-    async def _fallback_direct_call(self, request: schemas.ChatCompletionRequest, openai_api_key: str) -> dict:
-        """Direct OpenAI call without autopilot (emergency fallback)."""
-        client = self._get_openai_client(openai_api_key)
+    async def _fallback_direct_call(self, request: schemas.ChatCompletionRequest, provider: models.ProviderConfig) -> dict:
+        """Direct provider call without autopilot (emergency fallback)."""
+        api_key = provider.get_api_key()
+        provider_name = str(provider.provider)
         
-        response = await client.chat.completions.create(
-            model=request.model,
-            messages=[msg.model_dump() for msg in request.messages],
-            temperature=request.temperature,
-            max_tokens=request.max_tokens
-        )
+        temp_router = ProviderRouter(self.db, 0)  # organization_id not needed for direct call
+        
+        if provider_name == "openai":
+            response = await temp_router.call_openai(
+                api_key=api_key,
+                model=request.model,
+                messages=[msg.model_dump() for msg in request.messages],
+                temperature=request.temperature,
+                max_tokens=request.max_tokens
+            )
+        elif provider_name == "google":
+            response = await temp_router.call_google(
+                api_key=api_key,
+                model=request.model,
+                messages=[msg.model_dump() for msg in request.messages],
+                temperature=request.temperature,
+                max_tokens=request.max_tokens
+            )
+        elif provider_name == "anthropic":
+            response = await temp_router.call_anthropic(
+                api_key=api_key,
+                model=request.model,
+                messages=[msg.model_dump() for msg in request.messages],
+                temperature=request.temperature,
+                max_tokens=request.max_tokens
+            )
+        else:
+            raise Exception(f"Unsupported provider: {provider_name}")
         
         return {
             'response': response,

@@ -19,15 +19,32 @@ from .limiter import limiter
 from .config import get_settings
 
 settings = get_settings()
-if settings.SENTRY_DSN:
-    sentry_sdk.init(
-        dsn=settings.SENTRY_DSN,
-        environment=settings.ENVIRONMENT,
-        integrations=[
-            FastApiIntegration(),
-        ],
-        traces_sample_rate=0.2,
-    )
+
+# Only initialize Sentry if DSN is provided and valid
+if settings.SENTRY_DSN and settings.SENTRY_DSN.strip():
+    # Strip any quotes from the DSN
+    sentry_dsn = str(settings.SENTRY_DSN).strip().strip('"').strip("'")
+    
+    # Validate DSN format (should start with http:// or https://)
+    if sentry_dsn.startswith(('http://', 'https://')):
+        try:
+            sentry_sdk.init(
+                dsn=sentry_dsn,
+                environment=settings.ENVIRONMENT,
+                traces_sample_rate=0.1,  # Adjust based on your needs
+                integrations=[
+                    FastApiIntegration(),
+                ],
+            )
+            print("✅ Sentry initialized successfully")
+        except Exception as e:
+            print(f"⚠️ Sentry initialization failed: {e}")
+            print("Application will continue without error tracking")
+    else:
+        print(f"⚠️ Invalid Sentry DSN format: {sentry_dsn[:20]}...")
+        print("Application will continue without error tracking")
+else:
+    print("ℹ️ Sentry DSN not configured, skipping error tracking")
 
 
 @asynccontextmanager
@@ -76,7 +93,7 @@ Cognitude is an OpenAI-compatible LLM proxy that provides intelligent caching, m
 
 * **🔄 OpenAI Compatible**: Drop-in replacement for OpenAI SDK
 * **💾 Intelligent Caching**: 30-70% cost savings through response caching
-* **🌐 Multi-Provider**: Support for OpenAI, Anthropic, Mistral, Groq
+* **🌐 Multi-Provider**: Support for OpenAI, Anthropic, Hugging Face, Groq
 * **💰 Cost Tracking**: Accurate per-request cost calculation
 * **📊 Analytics**: Comprehensive usage metrics and insights
 * **🔐 Multi-Tenant**: Secure API key-based organization isolation
@@ -94,7 +111,7 @@ client = OpenAI(
 
 # Same OpenAI code works!
 response = client.chat.completions.create(
-    model="gpt-3.5-turbo",
+    model="gpt-4o-mini",
     messages=[{"role": "user", "content": "Hello!"}]
 )
 ```
@@ -114,8 +131,8 @@ All endpoints require an API key in the `X-API-Key` header:
 ```bash
 curl -X POST http://your-server:8000/v1/chat/completions \\
   -H "X-API-Key: your-api-key" \\
-  -H "Content-Type: application/json" \\
-  -d '{"model": "gpt-3.5-turbo", "messages": [...]}'
+    -H "Content-Type: application/json" \\
+    -d '{"model": "gpt-4o-mini", "messages": [...]}'
 ```
     """,
     version="1.0.0",

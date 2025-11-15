@@ -74,8 +74,8 @@ class LLMRequest(Base):
     timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     
     # Request details
-    model = Column(String(100), nullable=False, index=True)  # gpt-4, claude-3-opus, etc.
-    provider = Column(String(50), nullable=False, index=True)  # openai, anthropic, mistral
+    model = Column(String(100), nullable=False, index=True)  # gpt-4-0125-preview, claude-3-opus-20240229, etc.
+    provider = Column(String(50), nullable=False, index=True)  # openai, anthropic, huggingface
     
     # Token tracking
     prompt_tokens = Column(Integer, nullable=False)
@@ -135,7 +135,7 @@ class ProviderConfig(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     organization_id = Column(Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
-    provider = Column(String(50), nullable=False, index=True)  # openai, anthropic, mistral, groq
+    provider = Column(String(50), nullable=False, index=True)  # openai, anthropic, huggingface, groq
     api_key_encrypted = Column(Text, nullable=False)
     enabled = Column(Boolean, server_default='true', nullable=False)
     priority = Column(Integer, server_default='0', nullable=False)  # For routing/fallback

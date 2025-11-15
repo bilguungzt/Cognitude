@@ -113,6 +113,8 @@ async def smart_completions(
             available_models.extend(["claude-3-opus", "claude-3-sonnet", "claude-3-haiku"])
         elif provider_name == "groq":
             available_models.extend(["llama3-70b", "mixtral-8x7b"])
+        elif provider_name == "google":
+            available_models.extend(["gemini-2.5-pro", "gemini-2.5-flash-lite"])
     
     # Select optimal model
     routing_decision = SmartRouter.select_model(
@@ -140,7 +142,7 @@ async def smart_completions(
     
     # Call standard proxy endpoint
     response = await chat_completions(
-        request=standard_request,
+        request_body=standard_request,
         db=db,
         organization=organization
     )
@@ -222,6 +224,16 @@ async def analyze_prompt(
             available_models.extend(["claude-3-opus", "claude-3-sonnet", "claude-3-haiku"])
         elif provider_name == "groq":
             available_models.extend(["llama3-70b", "mixtral-8x7b"])
+        elif provider_name == "google":
+            available_models.extend(["gemini-2.5-pro", "gemini-2.5-flash-lite"])
+    
+    # Debug logging
+    print(f"DEBUG: Complexity: {complexity}")
+    print(f"DEBUG: Available providers: {available_providers}")
+    print(f"DEBUG: Available models: {available_models}")
+    print(f"DEBUG: Number of providers: {len(providers)}")
+    for p in providers:
+        print(f"DEBUG:   Provider: {p.provider}, ID: {p.id}, Enabled: {p.enabled}")
     
     # Get routing decision
     routing_decision = SmartRouter.select_model(
@@ -230,6 +242,8 @@ async def analyze_prompt(
         available_models=available_models,
         available_providers=available_providers
     )
+    
+    print(f"DEBUG: Routing decision: {routing_decision}")
     
     # Add explanation
     routing_decision["explanation"] = SmartRouter.explain_selection(routing_decision)

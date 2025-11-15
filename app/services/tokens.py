@@ -11,7 +11,7 @@ except ImportError:
     TIKTOKEN_AVAILABLE = False
 
 
-def count_tokens(text: str, model: str = "gpt-3.5-turbo") -> int:
+def count_tokens(text: str, model: str = "gpt-4o-mini") -> int:
     """
     Count tokens in text for a specific model.
     
@@ -28,7 +28,7 @@ def count_tokens(text: str, model: str = "gpt-3.5-turbo") -> int:
     
     try:
         # Get encoding for model
-        if model.startswith("gpt-4"):
+        if model.startswith("gpt-4") or model.startswith("gpt-4o"):
             encoding = tiktoken.encoding_for_model("gpt-4")
         elif model.startswith("gpt-3.5"):
             encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
@@ -46,7 +46,7 @@ def count_tokens(text: str, model: str = "gpt-3.5-turbo") -> int:
         return len(text) // 4
 
 
-def count_messages_tokens(messages: List[Dict[str, str]], model: str = "gpt-3.5-turbo") -> int:
+def count_messages_tokens(messages: List[Dict[str, str]], model: str = "gpt-4o-mini") -> int:
     """
     Count tokens in a list of chat messages.
     Includes overhead for message formatting.
@@ -69,7 +69,7 @@ def count_messages_tokens(messages: List[Dict[str, str]], model: str = "gpt-3.5-
     
     try:
         # Get encoding
-        if model.startswith("gpt-4"):
+        if model.startswith("gpt-4") or model.startswith("gpt-4o"):
             encoding = tiktoken.encoding_for_model("gpt-4")
             tokens_per_message = 3
             tokens_per_name = 1

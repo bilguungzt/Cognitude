@@ -38,7 +38,7 @@ router = APIRouter(tags=["proxy"])
                                  "id": "chatcmpl-abc123",
                                  "object": "chat.completion",
                                  "created": 170490240,
-                                 "model": "gpt-3.5-turbo",
+                                 "model": "gpt-4o-mini",
                                  "choices": [
                                      {
                                          "index": 0,
@@ -54,11 +54,11 @@ router = APIRouter(tags=["proxy"])
                                      "completion_tokens": 12,
                                      "total_tokens": 22
                                  },
-                                 "x-cognitude": {
+                                     "x-cognitude": {
                                      "cached": False,
                                      "cost": 0.0024,
                                      "provider": "openai",
-                                     "cache_key": "chat:gpt-3.5-turbo:hash123"
+                                     "cache_key": "chat:gpt-4o-mini:hash123"
                                  }
                              }
                          }
@@ -111,8 +111,8 @@ router = APIRouter(tags=["proxy"])
 @limiter.limit("100/minute")
 async def chat_completions(
     request_body: schemas.ChatCompletionRequest,
-    request: Request,
-    response: Response,
+    request: Optional[Request] = None,
+    response: Optional[Response] = None,
     db: Session = Depends(get_db),
     organization: schemas.Organization = Depends(get_organization_from_api_key),
     x_cognitude_schema: Optional[str] = Header(None)
@@ -122,7 +122,7 @@ async def chat_completions(
     
     Features:
     - Automatic response caching (30-70% cost savings)
-    - Multi-provider routing (OpenAI, Anthropic, Mistral, Groq)
+    - Multi-provider routing (OpenAI, Anthropic, Hugging Face, Groq)
     - Token counting and cost calculation
     - Request logging and analytics
     - Fallback to alternative providers on failure
@@ -138,7 +138,7 @@ async def chat_completions(
     )
     
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4o-mini",
         messages=[{"role": "user", "content": "Hello!"}]
     )
     ```
@@ -156,19 +156,20 @@ async def chat_completions(
     start_time = time.time()
     
     try:
-        # Validate request size
-        content_length = request.headers.get("content-length")
-        if content_length:
-            try:
-                content_length_int = int(content_length)
-                if content_length_int > 10 * 1024 * 1024:  # 10MB limit
-                    raise HTTPException(
-                        status_code=413,
-                        detail="Request size exceeds maximum allowed limit of 10MB"
-                    )
-            except ValueError:
-                # If content-length header is invalid, continue processing
-                pass
+        # Validate request size (only if request object is available)
+        if request:
+            content_length = request.headers.get("content-length")
+            if content_length:
+                try:
+                    content_length_int = int(content_length)
+                    if content_length_int > 10 * 1024 * 1024:  # 10MB limit
+                        raise HTTPException(
+                            status_code=413,
+                            detail="Request size exceeds maximum allowed limit of 10MB"
+                        )
+                except ValueError:
+                    # If content-length header is invalid, continue processing
+                    pass
         
         # Validate model name
         validated_model = validate_model_name(request_body.model)
@@ -181,18 +182,18 @@ async def chat_completions(
         logger.error(f"Unexpected validation error: {e}")
         raise HTTPException(status_code=400, detail="Invalid request data")
     
-    # Instantiate Autopilot Engine
-    autopilot = AutopilotEngine(db, redis_cache)
-
-    # Get OpenAI API key
+    # Get API key for the requested model
     provider_router = ProviderRouter(db, organization.id)
-    openai_provider = provider_router.select_provider("gpt-4")
-    if not openai_provider:
-        raise HTTPException(status_code=400, detail="OpenAI provider not configured.")
+    provider = provider_router.select_provider(request_body.model)
+    if not provider:
+        raise HTTPException(status_code=400, detail=f"Provider not configured for model '{request_body.model}'.")
     
-    openai_api_key = openai_provider.get_api_key() if openai_provider else None
-    if not openai_api_key:
+    api_key = provider.get_api_key() if provider else None
+    if not api_key:
         raise HTTPException(status_code=400, detail="Provider API key not configured. Please configure your provider credentials.")
+
+    # Instantiate Autopilot Engine
+    autopilot = AutopilotEngine(db, redis_cache, provider_router)
 
     # Process request through Autopilot
     org_model = db.query(models.Organization).filter(models.Organization.id == organization.id).first()
@@ -241,7 +242,7 @@ async def chat_completions(
         request_body = schemas.ChatCompletionRequest(**modified_request_dict)
 
     # 3. Call LLM via Autopilot
-    result = await autopilot.process_request(request_body, org_model, openai_api_key)
+    result = await autopilot.process_request(request_body, org_model, provider)
     response_data = result['response']
     autopilot_metadata = result['autopilot_metadata']
 
@@ -291,7 +292,7 @@ async def chat_completions(
                 new_request.messages.append(schemas.ChatMessage(role="user", content=retry_prompt))
                 
                 # Call the LLM again via autopilot
-                result = await autopilot.process_request(new_request, org_model, openai_api_key)
+                result = await autopilot.process_request(new_request, org_model, api_key)
                 current_response = result['response'].model_dump()
                 
                 # If this was the last attempt, use the final response even if invalid
@@ -314,12 +315,12 @@ async def chat_completions(
                                  "object": "list",
                                  "data": [
                                      {
-                                         "id": "gpt-4",
+                                         "id": "gpt-4-0125-preview",
                                          "object": "model",
                                          "owned_by": "openai"
                                      },
                                      {
-                                         "id": "claude-3-opus",
+                                         "id": "claude-3-opus-20240229",
                                          "object": "model",
                                          "owned_by": "anthropic"
                                      }
@@ -380,7 +381,7 @@ async def list_models(
     ## Response
     Returns a list of available models based on your configured providers.
     Each model includes:
-    - `id`: Model identifier (e.g., "gpt-4", "claude-3-opus")
+    - `id`: Model identifier (e.g., "gpt-4-0125-preview", "claude-3-opus-20240229")
     - `object`: Always "model"
     - `owned_by`: Provider name (e.g., "openai", "anthropic")
     
@@ -399,20 +400,26 @@ async def list_models(
     for provider_config in providers:
         if str(provider_config.provider) == "openai":
             models_list.extend([
-                {"id": "gpt-4", "object": "model", "owned_by": "openai"},
-                {"id": "gpt-4-turbo", "object": "model", "owned_by": "openai"},
-                {"id": "gpt-3.5-turbo", "object": "model", "owned_by": "openai"},
+                {"id": "gpt-4o", "object": "model", "owned_by": "openai"},
+                {"id": "gpt-4o-mini", "object": "model", "owned_by": "openai"},
+                {"id": "gpt-4-0125-preview", "object": "model", "owned_by": "openai"},
+                {"id": "gpt-4-turbo-preview", "object": "model", "owned_by": "openai"},
             ])
         elif str(provider_config.provider) == "anthropic":
             models_list.extend([
+                {"id": "claude-3-opus-20240229", "object": "model", "owned_by": "anthropic"},
+                {"id": "claude-3-sonnet-20240229", "object": "model", "owned_by": "anthropic"},
                 {"id": "claude-3-opus", "object": "model", "owned_by": "anthropic"},
-                {"id": "claude-3-sonnet", "object": "model", "owned_by": "anthropic"},
-                {"id": "claude-3-haiku", "object": "model", "owned_by": "anthropic"},
             ])
-        elif str(provider_config.provider) == "mistral":
+        elif str(provider_config.provider) == "google":
             models_list.extend([
-                {"id": "mistral-large", "object": "model", "owned_by": "mistral"},
-                {"id": "mistral-medium", "object": "model", "owned_by": "mistral"},
+                {"id": "gemini-2-pro", "object": "model", "owned_by": "google"},
+                {"id": "gemini-2-flash", "object": "model", "owned_by": "google"},
+            ])
+        elif str(provider_config.provider) == "huggingface":
+            models_list.extend([
+                {"id": "hf/llama-3-70b", "object": "model", "owned_by": "huggingface"},
+                {"id": "hf/llama-3-13b", "object": "model", "owned_by": "huggingface"},
             ])
         elif str(provider_config.provider) == "groq":
             models_list.extend([

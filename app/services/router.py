@@ -35,7 +35,7 @@ class ProviderRouter:
         3. Provider enabled status
         
         Args:
-            model: Model identifier (e.g., "gpt-4", "claude-3-opus")
+            model: Model identifier (e.g., "gpt-4-0125-preview", "claude-3-opus-20240229")
             
         Returns:
             ProviderConfig or None if no suitable provider found
@@ -51,10 +51,11 @@ class ProviderRouter:
             provider_name = "openai"
         elif model.startswith("claude-"):
             provider_name = "anthropic"
-        elif model.startswith("mistral-"):
-            provider_name = "mistral"
+        # Mistral provider support removed (deprecated in this deployment)
         elif "llama" in model.lower() or "mixtral" in model.lower() or "gemma" in model.lower():
             provider_name = "groq"
+        elif "gemini" in model.lower():
+            provider_name = "google"
         
         # Find matching provider
         if provider_name:
@@ -207,6 +208,83 @@ class ProviderRouter:
                 ],
             }
     
+    async def call_google(
+        self,
+        api_key: str,
+        model: str,
+        messages: List[Dict[str, str]],
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Call Google Gemini API.
+        
+        Args:
+            api_key: Google AI API key
+            model: Model name (e.g., "gemini-pro", "gemini-1.5-flash")
+            messages: List of message dicts
+            **kwargs: Additional parameters
+            
+        Returns:
+            Response dict compatible with OpenAI format
+        """
+        try:
+            import google.generativeai as genai
+            
+            genai.configure(api_key=api_key)
+            
+            # Initialize the model
+            gemini_model = genai.GenerativeModel(model)
+            
+            # Convert messages to Gemini format
+            # For simplicity, combine all messages into a single prompt
+            conversation_parts = []
+            
+            for msg in messages:
+                if msg["role"] == "system":
+                    conversation_parts.append(f"System: {msg['content']}")
+                elif msg["role"] == "user":
+                    conversation_parts.append(f"User: {msg['content']}")
+                elif msg["role"] == "assistant":
+                    conversation_parts.append(f"Assistant: {msg['content']}")
+            
+            # Combine conversation
+            prompt = "\n".join(conversation_parts)
+            
+            # Generate response
+            response = gemini_model.generate_content(
+                prompt,
+                generation_config={
+                    "temperature": kwargs.get("temperature", 1.0),
+                    "max_output_tokens": kwargs.get("max_tokens", 2048),
+                }
+            )
+            
+            # Convert to OpenAI-compatible format
+            return {
+                "id": f"gemini-{int(time.time())}",
+                "model": model,
+                "created": int(time.time()),
+                "usage": {
+                    "prompt_tokens": len(prompt.split()),  # Rough estimate
+                    "completion_tokens": len(response.text.split()),  # Rough estimate
+                    "total_tokens": len(prompt.split()) + len(response.text.split()),
+                },
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": response.text,
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
+            }
+        except ImportError:
+            raise Exception("google-generativeai package not installed")
+        except Exception as e:
+            raise Exception(f"Google Gemini API error: {str(e)}")
+    
     async def call_provider(
         self,
         provider_config: models.ProviderConfig,
@@ -227,12 +305,14 @@ class ProviderRouter:
             Response dict in OpenAI-compatible format
         """
         provider_name = provider_config.provider
-        api_key = provider_config.api_key_encrypted  # TODO: decrypt in production
+        api_key = provider_config.api_key  # This property decrypts api_key_encrypted
         
         if provider_name == "openai":
             return await self.call_openai(api_key, model, messages, **kwargs)
         elif provider_name == "anthropic":
             return await self.call_anthropic(api_key, model, messages, **kwargs)
+        elif provider_name == "google":
+            return await self.call_google(api_key, model, messages, **kwargs)
         else:
             raise Exception(f"Provider {provider_name} not yet implemented")
     
@@ -281,3 +361,33 @@ class ProviderRouter:
             
             # All providers failed
             raise Exception(f"All providers failed. Primary error: {str(primary_error)}")
+    
+    async def test_provider_connection(
+        self,
+        provider_name: str,
+        api_key: str,
+        model: str,
+        messages: List[Dict[str, str]],
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Test connection to a provider without requiring a saved config.
+        
+        Args:
+            provider_name: Provider name (openai, anthropic, google)
+            api_key: API key to test
+            model: Model name
+            messages: Test messages
+            **kwargs: Additional parameters
+            
+        Returns:
+            Response dict from the provider
+        """
+        if provider_name == "openai":
+            return await self.call_openai(api_key, model, messages, **kwargs)
+        elif provider_name == "anthropic":
+            return await self.call_anthropic(api_key, model, messages, **kwargs)
+        elif provider_name == "google":
+            return await self.call_google(api_key, model, messages, **kwargs)
+        else:
+            raise Exception(f"Provider {provider_name} not supported for testing")

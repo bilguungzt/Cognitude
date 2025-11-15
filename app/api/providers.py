@@ -137,3 +137,78 @@ def delete_provider(
         raise HTTPException(status_code=404, detail="Provider not found")
     
     return {"message": "Provider deleted successfully"}
+
+
+@router.post("/test", response_model=dict)
+def test_provider_connection(
+    provider: schemas.ProviderConfigCreate,
+    db: Session = Depends(get_db),
+    organization: schemas.Organization = Depends(get_organization_from_api_key)
+):
+    """
+    Test connection to a provider API.
+    
+    This endpoint validates that the provided API key works with the specified provider.
+    It does not save the provider configuration.
+    
+    Requires API key authentication (X-API-Key header).
+    """
+    try:
+        from ..services.router import ProviderRouter
+        
+        # Validate provider configuration
+        if not provider.provider or not provider.api_key:
+            raise HTTPException(status_code=400, detail="Provider name and API key are required")
+        
+        # Create a temporary router to test the connection
+        router = ProviderRouter(db, organization.id)
+        
+        # Test with a simple message
+        test_messages = [{"role": "user", "content": "Hello, this is a test message."}]
+        
+        # Determine appropriate model for testing
+        # Use modern, commonly-available test models by default
+        test_model = "gpt-4o-mini"  # default modern OpenAI-compatible model
+        if provider.provider == "anthropic":
+            test_model = "claude-3-opus"
+        elif provider.provider == "google":
+            test_model = "gemini-2-pro"
+        
+        # Try to make a test call
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            result = loop.run_until_complete(
+                router.test_provider_connection(
+                    provider.provider,
+                    provider.api_key,
+                    test_model,
+                    test_messages,
+                    max_tokens=50,
+                    temperature=0
+                )
+            )
+            
+            return {
+                "success": True,
+                "message": "Connection test successful",
+                "provider": provider.provider,
+                "model": test_model,
+                "response": result["choices"][0]["message"]["content"][:100] + "..." if len(result["choices"][0]["message"]["content"]) > 100 else result["choices"][0]["message"]["content"]
+            }
+            
+        except Exception as test_error:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Connection test failed: {str(test_error)}"
+            )
+        finally:
+            loop.close()
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error testing provider connection: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to test provider connection")

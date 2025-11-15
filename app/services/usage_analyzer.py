@@ -140,9 +140,10 @@ class UsageAnalyzer:
         
         # Expensive models that might be over-used
         expensive_models = {
-            'gpt-4': ('gpt-3.5-turbo', 0.0005, 12),  # (cheaper_alternative, alt_cost, savings_multiplier)
-            'gpt-4-turbo': ('gpt-3.5-turbo', 0.0005, 6),
-            'claude-3-opus': ('claude-3-sonnet', 0.003, 5),
+            'gpt-4': ('gpt-4o-mini', 0.0005, 12),  # (cheaper_alternative, alt_cost, savings_multiplier)
+            'gpt-4-0125-preview': ('gpt-4o-mini', 0.0005, 12),
+            'gpt-4-turbo-preview': ('gpt-4o-mini', 0.0005, 6),
+            'claude-3-opus-20240229': ('claude-3-sonnet-20240229', 0.003, 5),
         }
         
         for usage in model_usage:
@@ -274,7 +275,7 @@ class UsageAnalyzer:
         ).filter(
             models.LLMRequest.organization_id == self.organization_id,
             models.LLMRequest.timestamp >= cutoff_date,
-            models.LLMRequest.model.in_(['gpt-4', 'gpt-4-turbo', 'claude-3-opus']),
+            models.LLMRequest.model.in_(['gpt-4', 'gpt-4-0125-preview', 'gpt-4-turbo-preview', 'claude-3-opus-20240229']),
             models.LLMRequest.cache_hit == False
         ).scalar() or 0
         
